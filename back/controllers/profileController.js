@@ -234,153 +234,113 @@ export const updateLocation = async (req, res) => {
 };
 
 // Обновление информации о пользователе
-exports.updateAboutMe = async (req, res) => {
+export const updateAboutMe = async (req, res) => {
     try {
-        const { userId, aboutMe } = req.body;
-
-        if (!userId || userId === 'undefined') {
-            return res.status(400).json({ message: 'ID пользователя не указан' });
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ message: 'Токен не предоставлен' });
         }
 
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
-        }
-
-        const user = await User.findByIdAndUpdate(
-            userId,
-            { 
-                aboutMe,
-                updatedAt: new Date()
-            },
-            { new: true }
-        ).select('-password -resetPasswordToken -resetPasswordExpires');
-
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+        
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        res.json({
-            message: 'Информация о пользователе успешно обновлена',
-            user
-        });
+        const { aboutMe } = req.body;
+        if (!aboutMe) {
+            return res.status(400).json({ message: 'Поле aboutMe обязательно' });
+        }
+
+        user.aboutMe = aboutMe;
+        await user.save();
+
+        res.json({ message: 'Информация о пользователе успешно обновлена' });
     } catch (error) {
         console.error('Ошибка при обновлении информации о пользователе:', error);
-        res.status(500).json({ message: 'Ошибка при обновлении информации о пользователе' });
+        res.status(500).json({ message: 'Ошибка сервера' });
     }
 };
 
 // Обновление настроек профиля пользователя
-exports.updateProfileSettings = async (req, res) => {
+export const updateProfileSettings = async (req, res) => {
     try {
-        const { 
-            userId, 
-            whoSeesMyProfile, 
-            language, 
-            lookingFor, 
-            showOnlyWithPhoto,
-            age,
-            birthDay
-        } = req.body;
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ message: 'Токен не предоставлен' });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
         
-        console.log('req.body', req.body);
-        
-        if (!userId || userId === 'undefined') {
-            return res.status(400).json({ message: 'ID пользователя не указан' });
-        }
-
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
-        }
-
-        // Валидация входных данных
-        if (whoSeesMyProfile && !['GIRL', 'MAN', 'ALL'].includes(whoSeesMyProfile)) {
-            return res.status(400).json({ message: 'Неверное значение для whoSeesMyProfile' });
-        }
-
-        if (language && !['EN', 'PL'].includes(language)) {
-            return res.status(400).json({ message: 'Неверное значение для language' });
-        }
-
-        if (lookingFor && !['GIRL', 'MAN'].includes(lookingFor)) {
-            return res.status(400).json({ message: 'Неверное значение для lookingFor' });
-        }
-
-        if (showOnlyWithPhoto !== undefined && typeof showOnlyWithPhoto !== 'boolean') {
-            return res.status(400).json({ message: 'Неверное значение для showOnlyWithPhoto' });
-        }
-
-        if (age && (typeof age !== 'number' || age < 18 || age > 100)) {
-            return res.status(400).json({ message: 'Неверное значение для age' });
-        }
-
-        const updateData = {
-            updatedAt: new Date()
-        };
-
-        if (whoSeesMyProfile) updateData.whoSeesMyProfile = whoSeesMyProfile;
-        if (language) updateData.language = language;
-        if (lookingFor) updateData.lookingFor = lookingFor;
-        if (showOnlyWithPhoto !== undefined) updateData.showOnlyWithPhoto = showOnlyWithPhoto;
-        if (age) {
-            updateData.age = age;
-        }
-        if (birthDay) {
-            updateData.birthDay = new Date(birthDay);
-        }
-
-        const user = await User.findByIdAndUpdate(
-            userId,
-            updateData,
-            { new: true }
-        ).select('-password -resetPasswordToken -resetPasswordExpires');
-
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        res.json({
-            message: 'Настройки профиля успешно обновлены',
-            user
-        });
+        const { whoSeesMyProfile, language, lookingFor, showOnlyWithPhoto } = req.body;
+
+        if (whoSeesMyProfile) {
+            if (!['GIRL', 'MAN', 'ALL'].includes(whoSeesMyProfile)) {
+                return res.status(400).json({ message: 'Неверное значение для whoSeesMyProfile' });
+            }
+            user.whoSeesMyProfile = whoSeesMyProfile;
+        }
+
+        if (language) {
+            if (!['EN', 'PL'].includes(language)) {
+                return res.status(400).json({ message: 'Неверное значение для language' });
+            }
+            user.language = language;
+        }
+
+        if (lookingFor) {
+            if (!['GIRL', 'MAN'].includes(lookingFor)) {
+                return res.status(400).json({ message: 'Неверное значение для lookingFor' });
+            }
+            user.lookingFor = lookingFor;
+        }
+
+        if (typeof showOnlyWithPhoto === 'boolean') {
+            user.showOnlyWithPhoto = showOnlyWithPhoto;
+        }
+
+        await user.save();
+
+        res.json({ message: 'Настройки профиля успешно обновлены' });
     } catch (error) {
         console.error('Ошибка при обновлении настроек профиля:', error);
-        res.status(500).json({ message: 'Ошибка при обновлении настроек профиля' });
+        res.status(500).json({ message: 'Ошибка сервера' });
     }
 };
 
 // Обновление цели пользователя
-exports.updatePurpose = async (req, res) => {
+export const updatePurpose = async (req, res) => {
     try {
-        const { userId, purpose } = req.body;
-
-        if (!userId || userId === 'undefined') {
-            return res.status(400).json({ message: 'ID пользователя не указан' });
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ message: 'Токен не предоставлен' });
         }
 
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
-        }
-
-        const user = await User.findByIdAndUpdate(
-            userId,
-            { 
-                purpose,
-                updatedAt: new Date()
-            },
-            { new: true }
-        ).select('-password -resetPasswordToken -resetPasswordExpires');
-
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+        
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        res.json({
-            message: 'Цель пользователя успешно обновлена',
-            user
-        });
+        const { purpose } = req.body;
+        if (!purpose) {
+            return res.status(400).json({ message: 'Поле purpose обязательно' });
+        }
+
+        user.purpose = purpose;
+        await user.save();
+
+        res.json({ message: 'Цель пользователя успешно обновлена' });
     } catch (error) {
         console.error('Ошибка при обновлении цели пользователя:', error);
-        res.status(500).json({ message: 'Ошибка при обновлении цели пользователя' });
+        res.status(500).json({ message: 'Ошибка сервера' });
     }
 };
 
@@ -389,5 +349,8 @@ export default {
     getProfile,
     updateProfile,
     uploadVerificationPhoto,
-    updateLocation
+    updateLocation,
+    updateAboutMe,
+    updateProfileSettings,
+    updatePurpose
 }; 
