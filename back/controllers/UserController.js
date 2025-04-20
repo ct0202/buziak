@@ -2,7 +2,7 @@ import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import { s3, BUCKET_NAME } from '../config/aws.js';
 import crypto from 'crypto';
-import sendEmail from '../utils/sendEmail';
+import { sendEmail } from '../utils/sendEmail.js';
 
 // Регистрация
 export const register = async (req, res) => {
@@ -289,16 +289,4 @@ export const resetPassword = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: "Ошибка сервера", error: err.message });
   }
-};
-
-// Экспортируем все функции как default
-export default {
-    register,
-    login,
-    forgotPassword,
-    getUser,
-    getUsers,
-    getUserById,
-    updateUser,
-    resetPassword
 };
