@@ -8,7 +8,8 @@ RUN npm install
 
 COPY . .
 
-RUN npm run build
+ENV PORT=3002
+ENV HOST=0.0.0.0
 
 EXPOSE 3002
 

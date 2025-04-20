@@ -27,7 +27,8 @@ app.use(cors({
         "http://localhost:3001",
         "http://localhost:3002",
         "http://localhost:5173",
-        "https://buziak.online"
+        "https://buziak.online",
+        "http://buziak.online"
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With", "X-User-Email"],
