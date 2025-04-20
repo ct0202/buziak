@@ -1,7 +1,10 @@
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { s3, BUCKET_NAME } = require('../config/aws');
-const fetch = require('node-fetch');
+let fetch;
+import('node-fetch').then(module => {
+  fetch = module.default;
+});
 const multer = require('multer');
 const crypto = require('crypto');
 

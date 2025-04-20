@@ -1,18 +1,19 @@
-const express = require("express");
-const dotenv = require("dotenv");
-const connectDB = require("./config/db");
-const userRoutes = require("./routes/userRoutes");
-const authRoutes = require("./routes/authRoutes");
-const emailRoutes = require("./routes/emailRoutes");
-const photoRoutes = require("./routes/photoRoutes");
-const profileRoutes = require("./routes/profileRoutes");
-const adminRoutes = require("./routes/adminRoutes");
-const cors = require("cors");
-const morgan = require("morgan");
-const mongoose = require("mongoose");
-const path = require("path");
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import authRoutes from './routes/authRoutes.js';
+import userRoutes from './routes/userRoutes.js';
+import profileRoutes from './routes/profileRoutes.js';
+import photoRoutes from './routes/photoRoutes.js';
+import emailRoutes from './routes/emailRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import connectDB from './config/db.js';
+import morgan from 'morgan';
+import path from 'path';
 
 dotenv.config();
+
 const app = express();
 
 // CORS middleware
@@ -50,7 +51,6 @@ app.use("/api/email", emailRoutes);
 app.use("/api/profile/photos", photoRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/admin", adminRoutes);
-
 
 // Обработка ошибок
 app.use((err, req, res, next) => {
