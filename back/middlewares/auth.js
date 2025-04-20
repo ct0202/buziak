@@ -1,7 +1,7 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
-module.exports = async (req, res, next) => {
+const auth = async (req, res, next) => {
     try {
         // Получаем токен из заголовка Authorization
         const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -27,4 +27,6 @@ module.exports = async (req, res, next) => {
         console.error('Ошибка аутентификации:', error);
         res.status(401).json({ message: 'Недействительный токен' });
     }
-}; 
+};
+
+export default auth; 

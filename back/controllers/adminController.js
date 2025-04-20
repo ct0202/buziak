@@ -1,10 +1,10 @@
-const User = require('../models/User');
-const mongoose = require('mongoose');
-const { s3, BUCKET_NAME } = require('../config/aws');
-const jwt = require('jsonwebtoken');
+import User from '../models/User.js';
+import mongoose from 'mongoose';
+import { s3, BUCKET_NAME } from '../config/aws.js';
+import jwt from 'jsonwebtoken';
 
 // Получение списка всех пользователей
-exports.getAllUsers = async (req, res) => {
+const getAllUsers = async (req, res) => {
     try {
         const users = await User.find()
             .select('-password -resetPasswordToken -resetPasswordExpires')
@@ -18,7 +18,7 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // Блокировка/разблокировка пользователя
-exports.toggleUserStatus = async (req, res) => {
+const toggleUserStatus = async (req, res) => {
     try {
         const { userId } = req.params;
         
@@ -55,7 +55,7 @@ exports.toggleUserStatus = async (req, res) => {
 };
 
 // Получение списка пользователей на верификацию
-exports.getUsersForVerification = async (req, res) => {
+const getUsersForVerification = async (req, res) => {
     try {
         const users = await User.find({ 
             verificationPhoto: { $ne: null },
@@ -90,7 +90,7 @@ exports.getUsersForVerification = async (req, res) => {
 };
 
 // Получение детальной информации о пользователе
-exports.getUserDetails = async (req, res) => {
+const getUserDetails = async (req, res) => {
     try {
         const { id } = req.params;
         
@@ -145,7 +145,7 @@ exports.getUserDetails = async (req, res) => {
 };
 
 // Изменение статуса верификации пользователя
-exports.verifyUser = async (req, res) => {
+const verifyUser = async (req, res) => {
     try {
         const { id } = req.params;
         const { verified } = req.body;
@@ -182,7 +182,7 @@ exports.verifyUser = async (req, res) => {
 };
 
 // Вход администратора
-exports.adminLogin = async (req, res) => {
+const adminLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
 
@@ -224,4 +224,13 @@ exports.adminLogin = async (req, res) => {
         console.error('Ошибка при входе администратора:', error);
         res.status(500).json({ message: 'Ошибка сервера' });
     }
+};
+
+export default {
+    getAllUsers,
+    toggleUserStatus,
+    getUsersForVerification,
+    getUserDetails,
+    verifyUser,
+    adminLogin
 }; 

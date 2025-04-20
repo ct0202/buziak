@@ -1,6 +1,6 @@
-const User = require('../models/User');
+import User from '../models/User.js';
 
-module.exports = async (req, res, next) => {
+const admin = async (req, res, next) => {
     try {
         const user = await User.findById(req.user._id);
         
@@ -13,4 +13,6 @@ module.exports = async (req, res, next) => {
         console.error('Ошибка проверки прав администратора:', error);
         res.status(500).json({ message: 'Ошибка сервера' });
     }
-}; 
+};
+
+export default admin; 

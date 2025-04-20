@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import adminController from '../controllers/adminController.js';
+import auth from '../middlewares/auth.js';
+import admin from '../middlewares/admin.js';
+
 const router = express.Router();
-const adminController = require('../controllers/adminController');
-const auth = require('../middlewares/auth');
-const admin = require('../middlewares/admin');
 
 // Вход администратора (не требует аутентификации)
 router.post('/login', adminController.adminLogin);
@@ -25,4 +26,4 @@ router.get('/users/:id', adminController.getUserDetails);
 // Изменение статуса верификации пользователя
 router.post('/users/:id/verify', adminController.verifyUser);
 
-module.exports = router; 
+export default router; 
