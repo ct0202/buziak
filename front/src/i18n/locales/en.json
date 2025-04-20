@@ -1,0 +1,110 @@
+{
+    "register": {
+      "description": "<strong>Buziak</strong> is open, honest dating without shame. It's a place where you can create (and break) your own rules, meet, have fun, and misbehave. <strong>Buziak</strong> helps escape from the predictability and boredom of modern dating and choose something more exciting and hedonistic. It's a space where everyone can explore and safely indulge themselves, preferring open, intriguing connections based on mutual respect.",
+      "button_start": "Get Started",
+      "button_login": "Login",
+      "online": "Online:",
+      "loading": "Loading..."
+    },
+    "signup": {
+      "title": "Sign Up",
+      "name": "Enter your name",
+      "phone": "Enter phone number",
+      "email": "Enter email address",
+      "man": "I'm a guy",
+      "girl": "I'm a girl",
+      "password": "Enter password",
+      "checkbox": "I accept the Terms of Use and Privacy Policy",
+      "submit": "Sign Up",
+      "have_account": "Already have an account? <span style='color:#006ae5'>Login</span>",
+      "policy": "I accept the <span style='text-decoration: underline;'>Terms of Use and Privacy Policy</span>",
+      "labels": {
+        "phone": "Phone Number",
+        "email": "Email Address",
+        "password": "Password"
+      }
+    },
+    "signin": {
+      "title": "Login",
+      "email": "Enter email address",
+      "password": "Enter password",
+      "submit": "Login",
+      "having_troubles": "Having trouble logging in?",
+      "remember_me": "Remember me",
+      "dont_have_account": "Sign Up",
+      "no_account": "Don't have an account?"
+    },
+    "recover": {
+      "title": "Recover Password",
+      "hint": "Enter the <b>email</b> associated with your account.<br/> We'll send you a login link.",
+      "submit": "Send Email",
+      "success_hint": [
+        "Check your email!",
+        "We've sent a link to ",
+        " to help you log back into your account. Check your email and follow the instructions."
+      ],
+      "new_title": "Enter new password",
+      "new_password_placeholder": "New password...",
+      "new_submit": "Save password"
+    },
+    "email_confirm": {
+      "title": "Email Confirmation",
+      "text": [
+        "Enter the confirmation code we sent to",
+        "Didn't receive the code?",
+        "Request a new one"
+      ],
+      "submit": "Confirm"
+    },
+    "profile": {
+      "about_me": "Tell about yourself...",
+      "verify": {
+        "title": "Verify profile",
+        "description": "Prove that you are the person from your profile by sending a photo. If everything matches - you will get verification",
+        "ready": "I'm ready",
+        "later": "Later"
+      },
+      "edit": {
+        "change_photo": "Change Profile Picture",
+        "username": "Username",
+        "email": "Email",
+        "birthday": "Birthday",
+        "who_sees": "Who sees my profile",
+        "language": "Language",
+        "only_photos": "Only users with photos",
+        "years": "years"
+      },
+      "purposes": {
+        "restaurant": "Restaurant",
+        "just_fun": "Just for fun",
+        "long_term": "Long-term",
+        "online_fun": "Online fun only",
+        "swaps": "Open to swaps",
+        "bdsm": "BDSM",
+        "roleplay": "Roleplay",
+        "club": "Club",
+        "netflix": "Netflix & More",
+        "extreme": "Extreme"
+      },
+      "photos": {
+        "edit": "Edit",
+        "preview": "Preview"
+      }
+    },
+    "wallet": {
+      "your_balance": "Your balance",
+      "buy": "Buy"
+    },
+    "common": {
+      "loading": "Loading...",
+      "done": "Done"
+    },
+    "errors": {
+      "no_camera_or_id": "No camera access or user ID",
+      "photo_send_error": "Error sending photo",
+      "camera_access_error": "Error accessing camera"
+    },
+    "success": {
+      "photo_sent": "Photo successfully sent for user"
+    }
+  } 

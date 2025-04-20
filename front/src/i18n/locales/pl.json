@@ -1,0 +1,105 @@
+{
+    "register": {
+      "button_start": "Zacznij teraz",
+      "description": "<strong>Buziak</strong> to otwarte, szczere randki bez wstydu. To miejsce, w którym możesz tworzyć (i łamać) własne zasady, spotykać się i bawić. <strong>Buziak</strong> pomaga uciec od przewidywalności i nudy współczesnych randek i wybrać coś bardziej ekscytującego. To miejsce, w którym wszyscy możemy odkrywać i bezpiecznie się oddawać, preferując otwarte, intrygujące połączenia oparte na wzajemnym szacunku.",
+      "button_login": "Zaloguj się",
+      "online": "Online:",
+      "loading": "Ładowanie..."
+    },
+    "signup": {
+      "title": "Zarejestruj się",
+      "name": "Wpisz imię",
+      "phone": "Wpisz numer telefonu",
+      "email": "Wpisz adres e-mail",
+      "man": "Jestem mężczyzną",
+      "girl": "Jestem dziewczyną",
+      "password": "Wpisz hasło",
+      "checkbox": "Akceptuję regulamin i politykę prywatności",
+      "submit": "Zarejestruj się",
+      "have_account": "Masz już konto? <span style='color:#006ae5'>Zaloguj się</span>",
+      "policy": "Akceptuję <span style='text-decoration: underline;'>Regulamin i Politykę Prywatności</span>",
+      "labels": {
+        "phone": "Numer telefonu",
+        "email": "Adres e-mail",
+        "password": "Hasło"
+      }
+    },
+    "signin": {
+      "title": "Zaloguj się",
+      "email": "Wpisz adres e-mail",
+      "password": "Wpisz hasło",
+      "submit": "Zaloguj się",
+      "having_troubles": "Masz problemy z logowaniem?",
+      "remember_me": "Zapamiętaj mnie",
+      "dont_have_account": "Zarejestruj się",
+      "no_account": "Nie masz konta?"
+    },
+    "recover": {
+      "title": "Odzyskaj hasło",
+      "hint": "Wpisz <b>email</b> powiązany z Twoim kontem.<br/> Wyślemy Ci link do logowania.",
+      "submit": "Wyślij email",
+      "success_hint":
+        "Sprawdź swoją pocztę!<br/>Wysłaliśmy link na, aby pomóc Ci ponownie zalogować się do konta. Sprawdź pocztę i postępuj zgodnie z instrukcjami.",
+      "new_title": "Wprowadź nowe hasło",
+      "new_password_placeholder": "Nowe hasło...",
+      "new_submit": "Zapisz hasło"
+    },
+    "email_confirm": {
+      "title": "Potwierdzenie e-mail",
+      "text1": "Wprowadź kod potwierdzający, który wysłaliśmy na",
+      "text2": "Nie otrzymałeś kodu? Wyślij ponownie",
+      "submit": "Potwierdź"
+    },
+    "profile": {
+      "about_me": "Opowiedz o sobie...",
+      "verify": {
+        "title": "Zweryfikuj profil",
+        "description": "Udowodnij, że jesteś osobą ze swojego profilu, wysyłając zdjęcie. Jeśli wszystko się zgadza - otrzymasz weryfikację",
+        "ready": "Jestem gotowy",
+        "later": "Później"
+      },
+      "edit": {
+        "change_photo": "Zmień zdjęcie profilowe",
+        "username": "Nazwa użytkownika",
+        "email": "Email",
+        "birthday": "Data urodzenia",
+        "who_sees": "Kto widzi mój profil",
+        "language": "Język",
+        "only_photos": "Tylko użytkownicy ze zdjęciami",
+        "years": "lat"
+      },
+      "purposes": {
+        "restaurant": "Restauracja",
+        "just_fun": "Tylko zabawa",
+        "long_term": "Długoterminowy",
+        "online_fun": "Tylko zabawa online",
+        "swaps": "Otwarty na zamiany",
+        "bdsm": "BDSM",
+        "roleplay": "Odgrywanie ról",
+        "club": "Klub",
+        "netflix": "Netflix i więcej",
+        "extreme": "Ekstremalne"
+      },
+      "photos": {
+        "edit": "Edytuj",
+        "preview": "Podgląd"
+      }
+    },
+    "wallet": {
+      "your_balance": "Twoje saldo",
+      "buy": "Kup"
+    },
+    "common": {
+      "loading": "Ładowanie...",
+      "done": "Gotowe"
+    },
+    "errors": {
+      "no_camera_or_id": "Brak dostępu do kamery lub ID użytkownika",
+      "photo_send_error": "Błąd wysyłania zdjęcia",
+      "camera_access_error": "Błąd dostępu do kamery"
+    },
+    "success": {
+      "photo_sent": "Zdjęcie zostało pomyślnie wysłane dla użytkownika"
+    }
+  }
+  
