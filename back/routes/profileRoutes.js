@@ -1,9 +1,8 @@
-import express from 'express';
-import { getProfile, updateLocation, uploadVerificationPhoto, updateAboutMe, updateProfileSettings, updatePurpose } from '../controllers/profileController.js';
-import multer from 'multer';
-// import auth from '../middlewares/auth.js';
-
+const express = require('express');
 const router = express.Router();
+const profileController = require('../controllers/profileController');
+const multer = require('multer');
+// const auth = require('../middlewares/auth');
 
 // Настройка multer для обработки верификационного фото
 const upload = multer({
@@ -25,21 +24,21 @@ const upload = multer({
 // router.use(auth);
 
 // Получение профиля пользователя
-router.get('/', getProfile);
+router.get('/', profileController.getProfile);
 
 // Обновление геолокации
-router.post('/location', updateLocation);
+router.post('/location', profileController.updateLocation);
 
 // Загрузка верификационного фото
-router.post('/verification', upload.single('photo'), uploadVerificationPhoto);
+router.post('/verification', upload.single('photo'), profileController.uploadVerificationPhoto);
 
 // Обновление информации о пользователе
-router.put('/about-me', updateAboutMe);
+router.put('/about-me', profileController.updateAboutMe);
 
 // Обновление настроек профиля
-router.put('/', updateProfileSettings);
+router.put('/', profileController.updateProfileSettings);
 
 // Обновление цели пользователя
-router.put('/purpose', updatePurpose);
+router.put('/purpose', profileController.updatePurpose);
 
-export default router; 
+module.exports = router; 
