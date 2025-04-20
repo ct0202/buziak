@@ -167,3 +167,105 @@ export const googleAuth = async (req, res) => {
         res.status(500).json({ message: 'Ошибка сервера' });
     }
 };
+
+// Получение URL авторизации
+export const getAuthUrl = async (req, res) => {
+    try {
+        const authUrl = client.generateAuthUrl({
+            access_type: 'offline',
+            scope: ['profile', 'email'],
+            prompt: 'consent'
+        });
+        res.json({ authUrl });
+    } catch (error) {
+        console.error('Ошибка при получении URL авторизации:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Обработка callback от Google
+export const handleGoogleCallback = async (req, res) => {
+    try {
+        const { code } = req.query;
+        const { tokens } = await client.getToken(code);
+        client.setCredentials(tokens);
+
+        const ticket = await client.verifyIdToken({
+            idToken: tokens.id_token,
+            audience: process.env.GOOGLE_CLIENT_ID
+        });
+
+        const payload = ticket.getPayload();
+        const { email, name, picture } = payload;
+
+        // Проверяем, существует ли пользователь
+        let user = await User.findOne({ email });
+
+        if (!user) {
+            // Создаем нового пользователя
+            user = new User({
+                email,
+                name,
+                photos: new Array(6).fill(null)
+            });
+
+            // Если есть аватар от Google, сохраняем его
+            if (picture) {
+                try {
+                    // Скачиваем изображение
+                    const response = await fetch(picture);
+                    const buffer = await response.buffer();
+                    
+                    // Генерируем уникальное имя файла
+                    const fileName = `${user._id}-google-avatar.jpg`;
+                    const key = `avatars/${fileName}`;
+
+                    // Загружаем в S3
+                    await s3.upload({
+                        Bucket: BUCKET_NAME,
+                        Key: key,
+                        Body: buffer,
+                        ContentType: 'image/jpeg'
+                    }).promise();
+
+                    // Сохраняем ключ в базе данных
+                    user.avatar = key;
+                } catch (error) {
+                    console.error('Ошибка при сохранении аватара Google:', error);
+                }
+            }
+
+            await user.save();
+        }
+
+        // Создаем JWT токен
+        const jwtToken = jwt.sign(
+            { id: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+
+        res.json({
+            token: jwtToken,
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                photos: user.photos,
+                avatar: user.avatar
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка при обработке callback от Google:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Экспортируем все функции как default
+export default {
+    register,
+    login,
+    googleAuth,
+    getAuthUrl,
+    handleGoogleCallback
+};

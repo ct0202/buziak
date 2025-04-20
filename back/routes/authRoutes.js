@@ -1,7 +1,7 @@
 import express from 'express';
 import { google } from 'googleapis';
 import dotenv from 'dotenv';
-import authController from '../controllers/authController.js';
+import { register, login, googleAuth, getAuthUrl, handleGoogleCallback } from '../controllers/authController.js';
 
 const router = express.Router();
 const OAuth2 = google.auth.OAuth2;
@@ -83,7 +83,7 @@ router.get('/', (req, res) => {
 });
 
 // Роут для инициализации OAuth потока
-router.get('/google', authController.getAuthUrl);
+router.get('/google', getAuthUrl);
 
 // Тестовый роут для проверки callback URL
 router.get('/test-callback', (req, res) => {
@@ -101,7 +101,7 @@ const generateAuthUrl = () => {
 };
 
 // Роут для отображения URL авторизации
-router.get('/google/callback', authController.handleGoogleCallback);
+router.get('/google/callback', handleGoogleCallback);
 
 // Роут для обработки кода авторизации
 router.get('/google/callback/auth', async (req, res) => {

@@ -1,13 +1,13 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
-const mongoose = require('mongoose');
-const { s3, BUCKET_NAME } = require('../config/aws');
+import mongoose from 'mongoose';
+import { s3, BUCKET_NAME } from '../config/aws.js';
+import multer from 'multer';
+import crypto from 'crypto';
 let fetch;
 import('node-fetch').then(module => {
   fetch = module.default;
 });
-const multer = require('multer');
-const crypto = require('crypto');
 
 // Настройка multer для обработки верификационного фото
 const upload = multer({
@@ -78,7 +78,7 @@ export const updateProfile = async (req, res) => {
 };
 
 // Загрузка верификационного фото
-exports.uploadVerificationPhoto = async (req, res) => {
+export const uploadVerificationPhoto = async (req, res) => {
     try {
         const { userId } = req.body;
         const file = req.file;
@@ -179,7 +179,7 @@ async function getLocationInfo(latitude, longitude) {
 }
 
 // Обновление геолокации пользователя
-exports.updateLocation = async (req, res) => {
+export const updateLocation = async (req, res) => {
     try {
         const { userId, latitude, longitude } = req.body;
 
@@ -198,45 +198,38 @@ exports.updateLocation = async (req, res) => {
 
         // Проверяем, что координаты являются числами
         const lat = parseFloat(latitude);
-        const lng = parseFloat(longitude);
+        const lon = parseFloat(longitude);
 
-        if (isNaN(lat) || isNaN(lng)) {
+        if (isNaN(lat) || isNaN(lon)) {
             return res.status(400).json({ message: 'Неверный формат координат' });
         }
 
-        // Получаем информацию о местоположении
-        const locationInfo = await getLocationInfo(lat, lng);
-
-        // Обновляем геолокацию пользователя
-        const updateData = {
-            latitude: lat,
-            longitude: lng,
-            updatedAt: new Date()
-        };
-
-        // Добавляем страну и город, если они определены
-        if (locationInfo) {
-            updateData.country = locationInfo.country;
-            updateData.city = locationInfo.city;
-        }
-
-        const user = await User.findByIdAndUpdate(
-            userId,
-            updateData,
-            { new: true }
-        ).select('-password -resetPasswordToken -resetPasswordExpires');
-
+        const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
+        // Получаем информацию о местоположении
+        const locationInfo = await getLocationInfo(lat, lon);
+
+        // Обновляем местоположение пользователя
+        user.location = {
+            type: 'Point',
+            coordinates: [lon, lat],
+            country: locationInfo?.country,
+            city: locationInfo?.city,
+            lastUpdated: new Date()
+        };
+
+        await user.save();
+
         res.json({
-            message: 'Геолокация успешно обновлена',
-            user
+            message: 'Местоположение обновлено',
+            location: user.location
         });
     } catch (error) {
-        console.error('Ошибка при обновлении геолокации:', error);
-        res.status(500).json({ message: 'Ошибка при обновлении геолокации' });
+        console.error('Ошибка при обновлении местоположения:', error);
+        res.status(500).json({ message: 'Ошибка при обновлении местоположения' });
     }
 };
 
@@ -389,4 +382,12 @@ exports.updatePurpose = async (req, res) => {
         console.error('Ошибка при обновлении цели пользователя:', error);
         res.status(500).json({ message: 'Ошибка при обновлении цели пользователя' });
     }
+};
+
+// Экспортируем все функции как default
+export default {
+    getProfile,
+    updateProfile,
+    uploadVerificationPhoto,
+    updateLocation
 }; 

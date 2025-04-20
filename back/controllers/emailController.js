@@ -207,4 +207,13 @@ export const verifyConfirmationCode = async (req, res) => {
         console.error('Ошибка проверки кода подтверждения:', error);
         res.status(500).json({ message: 'Ошибка проверки кода подтверждения' });
     }
+};
+
+// Экспортируем все функции как default
+export default {
+    sendConfirmationCode,
+    sendPasswordResetLink,
+    verifyResetToken,
+    resetPassword,
+    verifyConfirmationCode
 }; 

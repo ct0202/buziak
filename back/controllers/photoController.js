@@ -2,9 +2,10 @@ import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import { s3, BUCKET_NAME } from '../config/aws.js';
 import { v4 as uuidv4 } from 'uuid';
+import mongoose from 'mongoose';
 
 // Получение фотографий пользователя
-exports.getPhotos = async (req, res) => {
+export const getPhotos = async (req, res) => {
     try {
         const { userId } = req.query;
 
@@ -156,7 +157,7 @@ export const deletePhoto = async (req, res) => {
 };
 
 // Получение URL для просмотра фото
-exports.getPhotoURL = async (req, res) => {
+export const getPhotoURL = async (req, res) => {
     try {
         const { key } = req.params;
         const url = await s3.getSignedUrlPromise('getObject', {
@@ -169,4 +170,13 @@ exports.getPhotoURL = async (req, res) => {
         console.error('Ошибка при получении URL фото:', error);
         res.status(500).json({ message: 'Ошибка при получении URL фото' });
     }
+};
+
+// Экспортируем все функции как default
+export default {
+    getPhotos,
+    uploadAvatar,
+    uploadPhoto,
+    deletePhoto,
+    getPhotoURL
 }; 

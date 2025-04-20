@@ -1,13 +1,13 @@
 import express from "express";
-import userController from "../controllers/UserController.js";
+import { register, login, forgotPassword, resetPassword } from "../controllers/UserController.js";
 
 const router = express.Router();
 
-router.post("/register", userController.register);
-router.post("/login", userController.login);
-router.post("/forgot-password", userController.forgotPassword);
-router.post("/reset-password/:token", userController.resetPassword);
+router.post("/register", register);
+router.post("/login", login);
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password/:token", resetPassword);
 
-// router.put("/update-profile", userController.updateProfile);
+// router.put("/update-profile", updateProfile);
 
 export default router;

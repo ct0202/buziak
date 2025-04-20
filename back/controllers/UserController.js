@@ -1,10 +1,11 @@
-const User = require("../models/User");
-const jwt = require("jsonwebtoken");
-const crypto = require("crypto");
-const sendEmail = require("../utils/sendEmail");
+import User from '../models/User.js';
+import jwt from 'jsonwebtoken';
+import { s3, BUCKET_NAME } from '../config/aws.js';
+import crypto from 'crypto';
+import sendEmail from '../utils/sendEmail';
 
 // Регистрация
-exports.register = async (req, res) => {
+export const register = async (req, res) => {
   try {
     const { name, phone, email, password, gender } = req.body;
     
@@ -30,7 +31,7 @@ exports.register = async (req, res) => {
 };
 
 // Логин
-exports.login = async (req, res) => {
+export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -50,7 +51,7 @@ exports.login = async (req, res) => {
 };
 
 // Забыл пароль
-exports.forgotPassword = async (req, res) => {
+export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
@@ -76,18 +77,198 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
-// exports.updateProfile = async (req, res) => {
-//   try {
-//     const { update, data } = req.body;
+// Получение информации о пользователе
+export const getUser = async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ message: 'Не авторизован' });
+        }
 
-//     const user = await User.findByIdAndUpdate(req.user._id, { name, phone, email, password, gender }, { new: true });
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
 
-//     res.json({ message: "Профиль успешно обновлён" });
-//   }
-// }
+        // Генерируем подписанные URL для фотографий
+        const photosWithUrls = await Promise.all(user.photos.map(async (photo) => {
+            if (!photo) return null;
+            
+            try {
+                const url = await s3.getSignedUrlPromise('getObject', {
+                    Bucket: BUCKET_NAME,
+                    Key: photo,
+                    Expires: 3600
+                });
+                return { key: photo, url };
+            } catch (error) {
+                console.error('Ошибка при генерации URL для фото:', error);
+                return null;
+            }
+        }));
+
+        // Генерируем URL для аватара, если он есть
+        let avatarUrl = null;
+        if (user.avatar) {
+            try {
+                avatarUrl = await s3.getSignedUrlPromise('getObject', {
+                    Bucket: BUCKET_NAME,
+                    Key: user.avatar,
+                    Expires: 3600
+                });
+            } catch (error) {
+                console.error('Ошибка при генерации URL для аватара:', error);
+            }
+        }
+
+        res.json({
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                photos: photosWithUrls,
+                avatar: avatarUrl ? { key: user.avatar, url: avatarUrl } : null
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка при получении информации о пользователе:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Получение всех пользователей
+export const getUsers = async (req, res) => {
+    try {
+        const users = await User.find().select('-password');
+        const usersWithPhotos = await Promise.all(
+            users.map(async (user) => {
+                let avatarUrl = null;
+                if (user.avatar) {
+                    avatarUrl = await s3.getSignedUrlPromise('getObject', {
+                        Bucket: BUCKET_NAME,
+                        Key: user.avatar,
+                        Expires: 3600
+                    });
+                }
+
+                const photos = await Promise.all(
+                    user.photos.map(async (photo) => {
+                        const url = await s3.getSignedUrlPromise('getObject', {
+                            Bucket: BUCKET_NAME,
+                            Key: photo,
+                            Expires: 3600
+                        });
+                        return { key: photo, url };
+                    })
+                );
+
+                return {
+                    ...user.toObject(),
+                    avatar: user.avatar ? { key: user.avatar, url: avatarUrl } : null,
+                    photos
+                };
+            })
+        );
+
+        res.json(usersWithPhotos);
+    } catch (error) {
+        console.error('Ошибка при получении пользователей:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Получение пользователя по ID
+export const getUserById = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select('-password');
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+
+        let avatarUrl = null;
+        if (user.avatar) {
+            avatarUrl = await s3.getSignedUrlPromise('getObject', {
+                Bucket: BUCKET_NAME,
+                Key: user.avatar,
+                Expires: 3600
+            });
+        }
+
+        const photos = await Promise.all(
+            user.photos.map(async (photo) => {
+                const url = await s3.getSignedUrlPromise('getObject', {
+                    Bucket: BUCKET_NAME,
+                    Key: photo,
+                    Expires: 3600
+                });
+                return { key: photo, url };
+            })
+        );
+
+        res.json({
+            ...user.toObject(),
+            avatar: user.avatar ? { key: user.avatar, url: avatarUrl } : null,
+            photos
+        });
+    } catch (error) {
+        console.error('Ошибка при получении пользователя:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Обновление пользователя
+export const updateUser = async (req, res) => {
+    try {
+        const { name, age, gender, lookingFor, bio } = req.body;
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+
+        user.name = name || user.name;
+        user.age = age || user.age;
+        user.gender = gender || user.gender;
+        user.lookingFor = lookingFor || user.lookingFor;
+        user.bio = bio || user.bio;
+
+        await user.save();
+
+        let avatarUrl = null;
+        if (user.avatar) {
+            avatarUrl = await s3.getSignedUrlPromise('getObject', {
+                Bucket: BUCKET_NAME,
+                Key: user.avatar,
+                Expires: 3600
+            });
+        }
+
+        const photos = await Promise.all(
+            user.photos.map(async (photo) => {
+                const url = await s3.getSignedUrlPromise('getObject', {
+                    Bucket: BUCKET_NAME,
+                    Key: photo,
+                    Expires: 3600
+                });
+                return { key: photo, url };
+            })
+        );
+
+        res.json({
+            ...user.toObject(),
+            password: undefined,
+            avatar: user.avatar ? { key: user.avatar, url: avatarUrl } : null,
+            photos
+        });
+    } catch (error) {
+        console.error('Ошибка при обновлении пользователя:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
 
 // Сброс пароля
-exports.resetPassword = async (req, res) => {
+export const resetPassword = async (req, res) => {
   try {
     const { token } = req.params;
     const { password } = req.body;
@@ -108,4 +289,16 @@ exports.resetPassword = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: "Ошибка сервера", error: err.message });
   }
+};
+
+// Экспортируем все функции как default
+export default {
+    register,
+    login,
+    forgotPassword,
+    getUser,
+    getUsers,
+    getUserById,
+    updateUser,
+    resetPassword
 };

@@ -1,5 +1,5 @@
 import express from 'express';
-import photoController from '../controllers/photoController.js';
+import { getPhotos, uploadPhoto, deletePhoto } from '../controllers/photoController.js';
 // import auth from '../middlewares/auth.js';
 import multer from 'multer';
 
@@ -17,12 +17,12 @@ const upload = multer({
 // router.use(auth);
 
 // Получение фотографий
-router.get('/', photoController.getPhotos);
+router.get('/', getPhotos);
 
 // Загрузка фото
-router.post('/', upload.single('photo'), photoController.uploadPhoto);
+router.post('/', upload.single('photo'), uploadPhoto);
 
 // Удаление фото по индексу
-router.delete('/:index', photoController.deletePhoto);
+router.delete('/:index', deletePhoto);
 
 export default router; 

@@ -1,15 +1,15 @@
 import express from 'express';
-import emailController from '../controllers/emailController.js';
+import { sendConfirmationCode, sendPasswordResetLink, verifyResetToken, resetPassword, verifyConfirmationCode } from '../controllers/emailController.js';
 
 const router = express.Router();
 
-// router.post('/code', emailController.sendEmail);
-router.post('/send/code', emailController.sendConfirmationCode);
-router.post('/send/reset-password', emailController.sendPasswordResetLink);
-router.get('/verify-reset-token/:token', emailController.verifyResetToken);
-router.post('/reset-password', emailController.resetPassword);
+// router.post('/code', sendEmail);
+router.post('/send/code', sendConfirmationCode);
+router.post('/send/reset-password', sendPasswordResetLink);
+router.get('/verify-reset-token/:token', verifyResetToken);
+router.post('/reset-password', resetPassword);
 
 // Роут для проверки кода подтверждения
-router.post('/verify-code', emailController.verifyConfirmationCode);
+router.post('/verify-code', verifyConfirmationCode);
 
 export default router; 
