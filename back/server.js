@@ -21,15 +21,20 @@ dotenv.config();
 const app = express();
 
 // CORS middleware
-// app.use(cors({
-//     origin: true,
-//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-//     allowedOrigins: ["http://localhost:3000", "https://buziak.online", "http://localhost:5173"],
-//     allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With", "X-User-Email"],
-//     credentials: true,
-//     preflightContinue: false,
-//     optionsSuccessStatus: 204
-// }));
+app.use(cors({
+    origin: [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://localhost:5173",
+        "https://buziak.online"
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With", "X-User-Email"],
+    credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 204
+}));
 
 // Body parser middleware
 app.use(express.json());
