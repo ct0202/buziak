@@ -1,30 +1,28 @@
-import express from 'express';
-import { adminLogin, getAllUsers, toggleUserStatus, getUsersForVerification, getUserDetails, verifyUser } from '../controllers/adminController.js';
-import auth from '../middlewares/auth.js';
-import admin from '../middlewares/admin.js';
-
+const express = require('express');
 const router = express.Router();
+const adminController = require('../controllers/adminController');
+const auth = require('../middlewares/auth');
+const admin = require('../middlewares/admin');
 
 // Вход администратора (не требует аутентификации)
-router.post('/login', adminLogin);
+router.post('/login', adminController.adminLogin);
 
 // Все остальные роуты защищены middleware аутентификации и проверки прав администратора
 router.use(auth);
 router.use(admin);
 
 // Получение списка всех пользователей
-router.get('/users', getAllUsers);
+router.get('/users', adminController.getAllUsers);
 
 // Блокировка/разблокировка пользователя
-router.put('/users/:userId/toggle-status', toggleUserStatus);
+router.put('/users/:userId/toggle-status', adminController.toggleUserStatus);
 
 // Получение списка пользователей на верификацию
-router.get('/users/verification', getUsersForVerification);
-
+router.get('/users/verification', adminController.getUsersForVerification);
 // Получение детальной информации о пользователе
-router.get('/users/:id', getUserDetails);
+router.get('/users/:id', adminController.getUserDetails);
 
 // Изменение статуса верификации пользователя
-router.post('/users/:id/verify', verifyUser);
+router.post('/users/:id/verify', adminController.verifyUser);
 
-export default router; 
+module.exports = router; 

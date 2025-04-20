@@ -1,11 +1,10 @@
-import User from '../models/User.js';
-import jwt from 'jsonwebtoken';
-import { s3, BUCKET_NAME } from '../config/aws.js';
-import crypto from 'crypto';
-import { sendEmail } from '../utils/sendEmail.js';
+const User = require("../models/User");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const sendEmail = require("../utils/sendEmail");
 
 // Регистрация
-export const register = async (req, res) => {
+exports.register = async (req, res) => {
   try {
     const { name, phone, email, password, gender } = req.body;
     
@@ -31,7 +30,7 @@ export const register = async (req, res) => {
 };
 
 // Логин
-export const login = async (req, res) => {
+exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -51,7 +50,7 @@ export const login = async (req, res) => {
 };
 
 // Забыл пароль
-export const forgotPassword = async (req, res) => {
+exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
@@ -77,219 +76,63 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-// Получение информации о пользователе
-export const getUser = async (req, res) => {
-    try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) {
-            return res.status(401).json({ message: 'Не авторизован' });
-        }
+// exports.updateProfile = async (req, res) => {
+//   try {
+//     const { update, data } = req.body;
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id);
-        if (!user) {
-            return res.status(404).json({ message: 'Пользователь не найден' });
-        }
+//     const user = await User.findByIdAndUpdate(req.user._id, { name, phone, email, password, gender }, { new: true });
 
-        // Генерируем подписанные URL для фотографий
-        const photosWithUrls = await Promise.all(user.photos.map(async (photo) => {
-            if (!photo) return null;
-            
-            try {
-                const url = await s3.getSignedUrlPromise('getObject', {
-                    Bucket: BUCKET_NAME,
-                    Key: photo,
-                    Expires: 3600
-                });
-                return { key: photo, url };
-            } catch (error) {
-                console.error('Ошибка при генерации URL для фото:', error);
-                return null;
-            }
-        }));
+//     res.json({ message: "Профиль успешно обновлён" });
+//   }
+// }
 
-        // Генерируем URL для аватара, если он есть
-        let avatarUrl = null;
-        if (user.avatar) {
-            try {
-                avatarUrl = await s3.getSignedUrlPromise('getObject', {
-                    Bucket: BUCKET_NAME,
-                    Key: user.avatar,
-                    Expires: 3600
-                });
-            } catch (error) {
-                console.error('Ошибка при генерации URL для аватара:', error);
-            }
-        }
+// Сброс пароля
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
 
-        res.json({
-            user: {
-                id: user._id,
-                email: user.email,
-                name: user.name,
-                photos: photosWithUrls,
-                avatar: avatarUrl ? { key: user.avatar, url: avatarUrl } : null
-            }
-        });
-    } catch (error) {
-        console.error('Ошибка при получении информации о пользователе:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
-    }
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: Date.now() },
+    });
+
+    if (!user) return res.status(400).json({ message: "Недействительный или истекший токен" });
+
+    user.password = password;
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+    await user.save();
+
+    res.json({ message: "Пароль успешно обновлён" });
+  } catch (err) {
+    res.status(500).json({ message: "Ошибка сервера", error: err.message });
+  }
 };
 
-// Получение всех пользователей
-export const getUsers = async (req, res) => {
-    try {
-        const users = await User.find().select('-password');
-        const usersWithPhotos = await Promise.all(
-            users.map(async (user) => {
-                let avatarUrl = null;
-                if (user.avatar) {
-                    avatarUrl = await s3.getSignedUrlPromise('getObject', {
-                        Bucket: BUCKET_NAME,
-                        Key: user.avatar,
-                        Expires: 3600
-                    });
-                }
-
-                const photos = await Promise.all(
-                    user.photos.map(async (photo) => {
-                        const url = await s3.getSignedUrlPromise('getObject', {
-                            Bucket: BUCKET_NAME,
-                            Key: photo,
-                            Expires: 3600
-                        });
-                        return { key: photo, url };
-                    })
-                );
-
-                return {
-                    ...user.toObject(),
-                    avatar: user.avatar ? { key: user.avatar, url: avatarUrl } : null,
-                    photos
-                };
-            })
-        );
-
-        res.json(usersWithPhotos);
-    } catch (error) {
-        console.error('Ошибка при получении пользователей:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
-    }
-};
-
-// Получение пользователя по ID
-export const getUserById = async (req, res) => {
-    try {
-        const user = await User.findById(req.params.id).select('-password');
-        if (!user) {
-            return res.status(404).json({ message: 'Пользователь не найден' });
-        }
-
-        let avatarUrl = null;
-        if (user.avatar) {
-            avatarUrl = await s3.getSignedUrlPromise('getObject', {
-                Bucket: BUCKET_NAME,
-                Key: user.avatar,
-                Expires: 3600
-            });
-        }
-
-        const photos = await Promise.all(
-            user.photos.map(async (photo) => {
-                const url = await s3.getSignedUrlPromise('getObject', {
-                    Bucket: BUCKET_NAME,
-                    Key: photo,
-                    Expires: 3600
-                });
-                return { key: photo, url };
-            })
-        );
-
-        res.json({
-            ...user.toObject(),
-            avatar: user.avatar ? { key: user.avatar, url: avatarUrl } : null,
-            photos
-        });
-    } catch (error) {
-        console.error('Ошибка при получении пользователя:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
-    }
-};
-
-// Обновление пользователя
-export const updateUser = async (req, res) => {
-    try {
-        const { name, age, gender, lookingFor, bio } = req.body;
-        const user = await User.findById(req.user.id);
-
-        if (!user) {
-            return res.status(404).json({ message: 'Пользователь не найден' });
-        }
-
-        user.name = name || user.name;
-        user.age = age || user.age;
-        user.gender = gender || user.gender;
-        user.lookingFor = lookingFor || user.lookingFor;
-        user.bio = bio || user.bio;
-
-        await user.save();
-
-        let avatarUrl = null;
-        if (user.avatar) {
-            avatarUrl = await s3.getSignedUrlPromise('getObject', {
-                Bucket: BUCKET_NAME,
-                Key: user.avatar,
-                Expires: 3600
-            });
-        }
-
-        const photos = await Promise.all(
-            user.photos.map(async (photo) => {
-                const url = await s3.getSignedUrlPromise('getObject', {
-                    Bucket: BUCKET_NAME,
-                    Key: photo,
-                    Expires: 3600
-                });
-                return { key: photo, url };
-            })
-        );
-
-        res.json({
-            ...user.toObject(),
-            password: undefined,
-            avatar: user.avatar ? { key: user.avatar, url: avatarUrl } : null,
-            photos
-        });
-    } catch (error) {
-        console.error('Ошибка при обновлении пользователя:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
-    }
-};
 
 // Сброс пароля
 export const resetPassword = async (req, res) => {
-    try {
-        const { token, password } = req.body;
-        const user = await User.findOne({
-            resetToken: token,
-            resetTokenExpiry: { $gt: Date.now() }
-        });
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
 
-        if (!user) {
-            return res.status(400).json({ message: "Недействительный или просроченный токен" });
-        }
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: Date.now() },
+    });
 
-        user.password = password;
-        user.resetToken = undefined;
-        user.resetTokenExpiry = undefined;
-        await user.save();
+    if (!user) return res.status(400).json({ message: "Недействительный или истекший токен" });
 
-        res.json({ message: "Пароль успешно изменен" });
-    } catch (error) {
-        console.error('Ошибка при сбросе пароля:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
-    }
+    user.password = password;
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+    await user.save();
+
+    res.json({ message: "Пароль успешно обновлён" });
+  } catch (err) {
+    res.status(500).json({ message: "Ошибка сервера", error: err.message });
+  }
 };
 
         if (user.avatar) {

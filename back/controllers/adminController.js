@@ -1,10 +1,10 @@
-import User from '../models/User.js';
-import mongoose from 'mongoose';
-import { s3, BUCKET_NAME } from '../config/aws.js';
-import jwt from 'jsonwebtoken';
+const User = require('../models/User');
+const mongoose = require('mongoose');
+const { s3, BUCKET_NAME } = require('../config/aws');
+const jwt = require('jsonwebtoken');
 
 // Получение списка всех пользователей
-export const getAllUsers = async (req, res) => {
+exports.getAllUsers = async (req, res) => {
     try {
         const users = await User.find()
             .select('-password -resetPasswordToken -resetPasswordExpires')
@@ -18,7 +18,7 @@ export const getAllUsers = async (req, res) => {
 };
 
 // Блокировка/разблокировка пользователя
-export const toggleUserStatus = async (req, res) => {
+exports.toggleUserStatus = async (req, res) => {
     try {
         const { userId } = req.params;
         
@@ -55,7 +55,7 @@ export const toggleUserStatus = async (req, res) => {
 };
 
 // Получение списка пользователей на верификацию
-export const getUsersForVerification = async (req, res) => {
+exports.getUsersForVerification = async (req, res) => {
     try {
         const users = await User.find({ 
             verificationPhoto: { $ne: null },
@@ -90,7 +90,7 @@ export const getUsersForVerification = async (req, res) => {
 };
 
 // Получение детальной информации о пользователе
-export const getUserDetails = async (req, res) => {
+exports.getUserDetails = async (req, res) => {
     try {
         const { id } = req.params;
         
@@ -145,7 +145,7 @@ export const getUserDetails = async (req, res) => {
 };
 
 // Изменение статуса верификации пользователя
-export const verifyUser = async (req, res) => {
+exports.verifyUser = async (req, res) => {
     try {
         const { id } = req.params;
         const { verified } = req.body;
@@ -182,7 +182,7 @@ export const verifyUser = async (req, res) => {
 };
 
 // Вход администратора
-export const adminLogin = async (req, res) => {
+exports.adminLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
 
@@ -224,14 +224,4 @@ export const adminLogin = async (req, res) => {
         console.error('Ошибка при входе администратора:', error);
         res.status(500).json({ message: 'Ошибка сервера' });
     }
-};
-
-// Экспортируем все функции как default
-export default {
-    getAllUsers,
-    toggleUserStatus,
-    getUsersForVerification,
-    getUserDetails,
-    verifyUser,
-    adminLogin
 }; 

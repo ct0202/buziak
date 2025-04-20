@@ -1,10 +1,9 @@
-import express from 'express';
-import { google } from 'googleapis';
-import dotenv from 'dotenv';
-import { register, login, googleAuth, getAuthUrl, handleGoogleCallback } from '../controllers/authController.js';
-
+const express = require('express');
 const router = express.Router();
+const { google } = require('googleapis');
 const OAuth2 = google.auth.OAuth2;
+const dotenv = require('dotenv');
+const authController = require('../controllers/authController');
 
 // Загрузка переменных окружения
 dotenv.config();
@@ -83,7 +82,7 @@ router.get('/', (req, res) => {
 });
 
 // Роут для инициализации OAuth потока
-router.get('/google', getAuthUrl);
+router.get('/google', authController.getAuthUrl);
 
 // Тестовый роут для проверки callback URL
 router.get('/test-callback', (req, res) => {
@@ -101,7 +100,7 @@ const generateAuthUrl = () => {
 };
 
 // Роут для отображения URL авторизации
-router.get('/google/callback', handleGoogleCallback);
+router.get('/google/callback', authController.handleGoogleCallback);
 
 // Роут для обработки кода авторизации
 router.get('/google/callback/auth', async (req, res) => {
@@ -305,4 +304,4 @@ router.get('/terms', (req, res) => {
   `);
 });
 
-export default router; 
+module.exports = router; 

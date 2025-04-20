@@ -1,4 +1,4 @@
-import AWS from 'aws-sdk';
+const AWS = require('aws-sdk');
 
 // Конфигурация AWS
 AWS.config.update({
@@ -13,4 +13,7 @@ const s3 = new AWS.S3();
 // Название бакета
 const BUCKET_NAME = process.env.AWS_S3_BUCKET;
 
-export { s3, BUCKET_NAME }; 
+module.exports = {
+    s3,
+    BUCKET_NAME
+}; 

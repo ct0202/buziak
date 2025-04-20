@@ -1,10 +1,9 @@
-import { google } from 'googleapis';
-import dotenv from 'dotenv';
+const { google } = require('googleapis');
+const OAuth2 = google.auth.OAuth2;
+const dotenv = require('dotenv');
 
 // Загрузка переменных окружения
 dotenv.config();
-
-const OAuth2 = google.auth.OAuth2;
 
 const oauth2Client = new OAuth2(
   process.env.GMAIL_CLIENT_ID,
@@ -19,7 +18,7 @@ oauth2Client.setCredentials({
 
 const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-export const sendEmail = async ({ to, subject, text }) => {
+const sendEmail = async ({ to, subject, text }) => {
   try {
     const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
     const messageParts = [
@@ -52,3 +51,5 @@ export const sendEmail = async ({ to, subject, text }) => {
     throw error;
   }
 };
+module.exports = sendEmail;
+

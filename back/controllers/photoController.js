@@ -1,11 +1,10 @@
-import User from '../models/User.js';
-import jwt from 'jsonwebtoken';
-import { s3, BUCKET_NAME } from '../config/aws.js';
-import { v4 as uuidv4 } from 'uuid';
-import mongoose from 'mongoose';
+const { s3, BUCKET_NAME } = require('../config/aws');
+const User = require('../models/User');
+const crypto = require('crypto');
+const mongoose = require('mongoose');
 
 // Получение фотографий пользователя
-export const getPhotos = async (req, res) => {
+exports.getPhotos = async (req, res) => {
     try {
         const { userId } = req.query;
 
@@ -50,114 +49,125 @@ export const getPhotos = async (req, res) => {
     }
 };
 
-// Загрузка аватара
-export const uploadAvatar = async (req, res) => {
+// Загрузка фото
+exports.uploadPhoto = async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ message: 'Файл не загружен' });
+        const { position, userId } = req.body;
+        const file = req.file;
+
+        if (!file) {
+            return res.status(400).json({ message: 'Файл не предоставлен' });
         }
 
-        const user = await User.findById(req.user.id);
+        if (position === undefined || position < 0 || position > 8) {
+            return res.status(400).json({ message: 'Неверная позиция фото (должна быть от 0 до 8)' });
+        }
+
+        if (!userId || userId === 'undefined') {
+            return res.status(400).json({ message: 'ID пользователя не указан' });
+        }
+
+        // Проверяем, что userId является валидным ObjectId
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
+        }
+
+        const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        // Если у пользователя уже есть аватар, удаляем старый
-        if (user.avatar) {
-            await s3.deleteObject({
-                Bucket: BUCKET_NAME,
-                Key: user.avatar
-            }).promise();
-        }
+        // Генерируем уникальное имя файла
+        const fileName = `${userId}-${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${file.originalname.split('.').pop()}`;
+        const key = `photos/${fileName}`;
 
-        user.avatar = req.file.key;
+        // Загружаем файл в S3
+        const params = {
+            Bucket: BUCKET_NAME,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype
+        };
+
+        await s3.upload(params).promise();
+
+        // Обновляем массив фотографий пользователя
+        if (!user.photos) {
+            user.photos = new Array(9).fill(null);
+        }
+        user.photos[position] = key;
         await user.save();
 
-        const avatarUrl = await s3.getSignedUrlPromise('getObject', {
+        // Генерируем URL для просмотра
+        const url = await s3.getSignedUrlPromise('getObject', {
             Bucket: BUCKET_NAME,
-            Key: user.avatar,
+            Key: key,
             Expires: 3600
         });
 
         res.json({
-            avatar: {
-                key: user.avatar,
-                url: avatarUrl
-            }
+            message: 'Фото успешно загружено',
+            url,
+            position
         });
     } catch (error) {
-        console.error('Ошибка при загрузке аватара:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
+        console.error('Ошибка при загрузке фото:', error);
+        res.status(500).json({ message: 'Ошибка при загрузке фото' });
     }
 };
 
-// Загрузка фотографии
-export const uploadPhoto = async (req, res) => {
+// Удаление фото по индексу
+exports.deletePhoto = async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ message: 'Файл не загружен' });
+        const { index } = req.params;
+        const { userId } = req.body;
+
+        if (index < 0 || index > 8) {
+            return res.status(400).json({ message: 'Неверный индекс фото (должен быть от 0 до 8)' });
         }
 
-        const user = await User.findById(req.user.id);
+        if (!userId || userId === 'undefined') {
+            return res.status(400).json({ message: 'ID пользователя не указан' });
+        }
+
+        // Проверяем, что userId является валидным ObjectId
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
+        }
+
+        const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        user.photos.push(req.file.key);
-        await user.save();
-
-        const photoUrl = await s3.getSignedUrlPromise('getObject', {
-            Bucket: BUCKET_NAME,
-            Key: req.file.key,
-            Expires: 3600
-        });
-
-        res.json({
-            photo: {
-                key: req.file.key,
-                url: photoUrl
-            }
-        });
-    } catch (error) {
-        console.error('Ошибка при загрузке фотографии:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
-    }
-};
-
-// Удаление фотографии
-export const deletePhoto = async (req, res) => {
-    try {
-        const { photoKey } = req.params;
-        const user = await User.findById(req.user.id);
-
-        if (!user) {
-            return res.status(404).json({ message: 'Пользователь не найден' });
-        }
-
-        const photoIndex = user.photos.indexOf(photoKey);
-        if (photoIndex === -1) {
-            return res.status(404).json({ message: 'Фотография не найдена' });
+        if (!user.photos || !user.photos[index]) {
+            return res.status(404).json({ message: 'Фото не найдено' });
         }
 
         // Удаляем фото из S3
-        await s3.deleteObject({
+        const params = {
             Bucket: BUCKET_NAME,
-            Key: photoKey
-        }).promise();
+            Key: user.photos[index]
+        };
 
-        // Удаляем фото из массива пользователя
-        user.photos.splice(photoIndex, 1);
+        await s3.deleteObject(params).promise();
+
+        // Удаляем ссылку из массива
+        user.photos[index] = null;
         await user.save();
 
-        res.json({ message: 'Фотография успешно удалена' });
+        res.json({ 
+            message: 'Фото успешно удалено',
+            position: index
+        });
     } catch (error) {
-        console.error('Ошибка при удалении фотографии:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
+        console.error('Ошибка при удалении фото:', error);
+        res.status(500).json({ message: 'Ошибка при удалении фото' });
     }
 };
 
 // Получение URL для просмотра фото
-export const getPhotoURL = async (req, res) => {
+exports.getPhotoURL = async (req, res) => {
     try {
         const { key } = req.params;
         const url = await s3.getSignedUrlPromise('getObject', {
@@ -170,13 +180,4 @@ export const getPhotoURL = async (req, res) => {
         console.error('Ошибка при получении URL фото:', error);
         res.status(500).json({ message: 'Ошибка при получении URL фото' });
     }
-};
-
-// Экспортируем все функции как default
-export default {
-    getPhotos,
-    uploadAvatar,
-    uploadPhoto,
-    deletePhoto,
-    getPhotoURL
 }; 

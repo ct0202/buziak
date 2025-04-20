@@ -1,13 +1,9 @@
-import User from '../models/User.js';
-import jwt from 'jsonwebtoken';
-import mongoose from 'mongoose';
-import { s3, BUCKET_NAME } from '../config/aws.js';
-import multer from 'multer';
-import crypto from 'crypto';
-let fetch;
-import('node-fetch').then(module => {
-  fetch = module.default;
-});
+const User = require('../models/User');
+const mongoose = require('mongoose');
+const { s3, BUCKET_NAME } = require('../config/aws');
+const fetch = require('node-fetch');
+const multer = require('multer');
+const crypto = require('crypto');
 
 // Настройка multer для обработки верификационного фото
 const upload = multer({
@@ -25,60 +21,73 @@ const upload = multer({
     }
 });
 
-// Получение профиля пользователя
-export const getProfile = async (req, res) => {
+// Получение полной информации о пользователе
+exports.getProfile = async (req, res) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) {
-            return res.status(401).json({ message: 'Токен не предоставлен' });
+        const { userId } = req.query;
+
+        if (!userId || userId === 'undefined') {
+            return res.status(400).json({ message: 'ID пользователя не указан' });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id).select('-password');
+        // Проверяем, что userId является валидным ObjectId
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
+        }
+
+        // Находим пользователя и исключаем чувствительные поля
+        const user = await User.findById(userId).select('-password -resetPasswordToken -resetPasswordExpires');
         
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        res.json(user);
+        // Генерируем URL для каждой фотографии
+        if (user.photos && user.photos.length > 0) {
+            console.log("генерируем URL для каждой фотографии");
+            const photoUrls = await Promise.all(
+                user.photos.map(async (key, position) => {
+                    if (!key) return null;
+                    
+                    const url = await s3.getSignedUrlPromise('getObject', {
+                        Bucket: BUCKET_NAME,
+                        Key: key,
+                        Expires: 3600
+                    });
+
+                    return {
+                        position,
+                        url,
+                        key
+                    };
+                })
+            );
+
+            user.photoUrls = photoUrls.filter(photo => photo !== null);
+            console.log('user.photoUrls', user.photoUrls);
+        }
+
+        // Генерируем URL для верификационного фото, если оно есть
+        if (user.verificationPhoto) {
+            user.verificationPhotoUrl = await s3.getSignedUrlPromise('getObject', {
+                Bucket: BUCKET_NAME,
+                Key: user.verificationPhoto,
+                Expires: 3600
+            });
+        }
+
+        // Преобразуем документ Mongoose в обычный объект перед отправкой
+        const userObject = user.toObject();
+        console.log('userObject', userObject);
+        res.json(userObject);
     } catch (error) {
         console.error('Ошибка при получении профиля:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
-    }
-};
-
-// Обновление профиля пользователя
-export const updateProfile = async (req, res) => {
-    try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) {
-            return res.status(401).json({ message: 'Токен не предоставлен' });
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id);
-        
-        if (!user) {
-            return res.status(404).json({ message: 'Пользователь не найден' });
-        }
-
-        // Обновляем только те поля, которые были предоставлены
-        if (req.body.name) user.name = req.body.name;
-        if (req.body.phone) user.phone = req.body.phone;
-        if (req.body.gender) user.gender = req.body.gender;
-        if (req.body.birthDate) user.birthDate = req.body.birthDate;
-        if (req.body.avatar) user.avatar = req.body.avatar;
-
-        await user.save();
-        res.json({ message: 'Профиль успешно обновлен' });
-    } catch (error) {
-        console.error('Ошибка при обновлении профиля:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
+        res.status(500).json({ message: 'Ошибка при получении профиля' });
     }
 };
 
 // Загрузка верификационного фото
-export const uploadVerificationPhoto = async (req, res) => {
+exports.uploadVerificationPhoto = async (req, res) => {
     try {
         const { userId } = req.body;
         const file = req.file;
@@ -179,7 +188,7 @@ async function getLocationInfo(latitude, longitude) {
 }
 
 // Обновление геолокации пользователя
-export const updateLocation = async (req, res) => {
+exports.updateLocation = async (req, res) => {
     try {
         const { userId, latitude, longitude } = req.body;
 
@@ -198,159 +207,195 @@ export const updateLocation = async (req, res) => {
 
         // Проверяем, что координаты являются числами
         const lat = parseFloat(latitude);
-        const lon = parseFloat(longitude);
+        const lng = parseFloat(longitude);
 
-        if (isNaN(lat) || isNaN(lon)) {
+        if (isNaN(lat) || isNaN(lng)) {
             return res.status(400).json({ message: 'Неверный формат координат' });
         }
 
-        const user = await User.findById(userId);
+        // Получаем информацию о местоположении
+        const locationInfo = await getLocationInfo(lat, lng);
+
+        // Обновляем геолокацию пользователя
+        const updateData = {
+            latitude: lat,
+            longitude: lng,
+            updatedAt: new Date()
+        };
+
+        // Добавляем страну и город, если они определены
+        if (locationInfo) {
+            updateData.country = locationInfo.country;
+            updateData.city = locationInfo.city;
+        }
+
+        const user = await User.findByIdAndUpdate(
+            userId,
+            updateData,
+            { new: true }
+        ).select('-password -resetPasswordToken -resetPasswordExpires');
+
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        // Получаем информацию о местоположении
-        const locationInfo = await getLocationInfo(lat, lon);
-
-        // Обновляем местоположение пользователя
-        user.location = {
-            type: 'Point',
-            coordinates: [lon, lat],
-            country: locationInfo?.country,
-            city: locationInfo?.city,
-            lastUpdated: new Date()
-        };
-
-        await user.save();
-
         res.json({
-            message: 'Местоположение обновлено',
-            location: user.location
+            message: 'Геолокация успешно обновлена',
+            user
         });
     } catch (error) {
-        console.error('Ошибка при обновлении местоположения:', error);
-        res.status(500).json({ message: 'Ошибка при обновлении местоположения' });
+        console.error('Ошибка при обновлении геолокации:', error);
+        res.status(500).json({ message: 'Ошибка при обновлении геолокации' });
     }
 };
 
 // Обновление информации о пользователе
-export const updateAboutMe = async (req, res) => {
+exports.updateAboutMe = async (req, res) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) {
-            return res.status(401).json({ message: 'Токен не предоставлен' });
+        const { userId, aboutMe } = req.body;
+
+        if (!userId || userId === 'undefined') {
+            return res.status(400).json({ message: 'ID пользователя не указан' });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id);
-        
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            userId,
+            { 
+                aboutMe,
+                updatedAt: new Date()
+            },
+            { new: true }
+        ).select('-password -resetPasswordToken -resetPasswordExpires');
+
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        const { aboutMe } = req.body;
-        if (!aboutMe) {
-            return res.status(400).json({ message: 'Поле aboutMe обязательно' });
-        }
-
-        user.aboutMe = aboutMe;
-        await user.save();
-
-        res.json({ message: 'Информация о пользователе успешно обновлена' });
+        res.json({
+            message: 'Информация о пользователе успешно обновлена',
+            user
+        });
     } catch (error) {
         console.error('Ошибка при обновлении информации о пользователе:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
+        res.status(500).json({ message: 'Ошибка при обновлении информации о пользователе' });
     }
 };
 
 // Обновление настроек профиля пользователя
-export const updateProfileSettings = async (req, res) => {
+exports.updateProfileSettings = async (req, res) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) {
-            return res.status(401).json({ message: 'Токен не предоставлен' });
+        const { 
+            userId, 
+            whoSeesMyProfile, 
+            language, 
+            lookingFor, 
+            showOnlyWithPhoto,
+            age,
+            birthDay
+        } = req.body;
+        
+        console.log('req.body', req.body);
+        
+        if (!userId || userId === 'undefined') {
+            return res.status(400).json({ message: 'ID пользователя не указан' });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id);
-        
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
+        }
+
+        // Валидация входных данных
+        if (whoSeesMyProfile && !['GIRL', 'MAN', 'ALL'].includes(whoSeesMyProfile)) {
+            return res.status(400).json({ message: 'Неверное значение для whoSeesMyProfile' });
+        }
+
+        if (language && !['EN', 'PL'].includes(language)) {
+            return res.status(400).json({ message: 'Неверное значение для language' });
+        }
+
+        if (lookingFor && !['GIRL', 'MAN'].includes(lookingFor)) {
+            return res.status(400).json({ message: 'Неверное значение для lookingFor' });
+        }
+
+        if (showOnlyWithPhoto !== undefined && typeof showOnlyWithPhoto !== 'boolean') {
+            return res.status(400).json({ message: 'Неверное значение для showOnlyWithPhoto' });
+        }
+
+        if (age && (typeof age !== 'number' || age < 18 || age > 100)) {
+            return res.status(400).json({ message: 'Неверное значение для age' });
+        }
+
+        const updateData = {
+            updatedAt: new Date()
+        };
+
+        if (whoSeesMyProfile) updateData.whoSeesMyProfile = whoSeesMyProfile;
+        if (language) updateData.language = language;
+        if (lookingFor) updateData.lookingFor = lookingFor;
+        if (showOnlyWithPhoto !== undefined) updateData.showOnlyWithPhoto = showOnlyWithPhoto;
+        if (age) {
+            updateData.age = age;
+        }
+        if (birthDay) {
+            updateData.birthDay = new Date(birthDay);
+        }
+
+        const user = await User.findByIdAndUpdate(
+            userId,
+            updateData,
+            { new: true }
+        ).select('-password -resetPasswordToken -resetPasswordExpires');
+
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        const { whoSeesMyProfile, language, lookingFor, showOnlyWithPhoto } = req.body;
-
-        if (whoSeesMyProfile) {
-            if (!['GIRL', 'MAN', 'ALL'].includes(whoSeesMyProfile)) {
-                return res.status(400).json({ message: 'Неверное значение для whoSeesMyProfile' });
-            }
-            user.whoSeesMyProfile = whoSeesMyProfile;
-        }
-
-        if (language) {
-            if (!['EN', 'PL'].includes(language)) {
-                return res.status(400).json({ message: 'Неверное значение для language' });
-            }
-            user.language = language;
-        }
-
-        if (lookingFor) {
-            if (!['GIRL', 'MAN'].includes(lookingFor)) {
-                return res.status(400).json({ message: 'Неверное значение для lookingFor' });
-            }
-            user.lookingFor = lookingFor;
-        }
-
-        if (typeof showOnlyWithPhoto === 'boolean') {
-            user.showOnlyWithPhoto = showOnlyWithPhoto;
-        }
-
-        await user.save();
-
-        res.json({ message: 'Настройки профиля успешно обновлены' });
+        res.json({
+            message: 'Настройки профиля успешно обновлены',
+            user
+        });
     } catch (error) {
         console.error('Ошибка при обновлении настроек профиля:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
+        res.status(500).json({ message: 'Ошибка при обновлении настроек профиля' });
     }
 };
 
 // Обновление цели пользователя
-export const updatePurpose = async (req, res) => {
+exports.updatePurpose = async (req, res) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) {
-            return res.status(401).json({ message: 'Токен не предоставлен' });
+        const { userId, purpose } = req.body;
+
+        if (!userId || userId === 'undefined') {
+            return res.status(400).json({ message: 'ID пользователя не указан' });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id);
-        
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            userId,
+            { 
+                purpose,
+                updatedAt: new Date()
+            },
+            { new: true }
+        ).select('-password -resetPasswordToken -resetPasswordExpires');
+
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        const { purpose } = req.body;
-        if (!purpose) {
-            return res.status(400).json({ message: 'Поле purpose обязательно' });
-        }
-
-        user.purpose = purpose;
-        await user.save();
-
-        res.json({ message: 'Цель пользователя успешно обновлена' });
+        res.json({
+            message: 'Цель пользователя успешно обновлена',
+            user
+        });
     } catch (error) {
         console.error('Ошибка при обновлении цели пользователя:', error);
-        res.status(500).json({ message: 'Ошибка сервера' });
+        res.status(500).json({ message: 'Ошибка при обновлении цели пользователя' });
     }
-};
-
-// Экспортируем все функции как default
-export default {
-    getProfile,
-    updateProfile,
-    uploadVerificationPhoto,
-    updateLocation,
-    updateAboutMe,
-    updateProfileSettings,
-    updatePurpose
 }; 
