@@ -1,6 +1,6 @@
-const { s3, BUCKET_NAME } = require('../config/aws');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+import { s3, BUCKET_NAME } from '../config/aws.js';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 const s3Client = new S3Client({
     region: process.env.AWS_REGION,
@@ -11,7 +11,7 @@ const s3Client = new S3Client({
 });
 
 // Генерация пресайн URL для загрузки файла
-const generateUploadURL = async (fileName, contentType) => {
+export const generateUploadURL = async (fileName, contentType) => {
     const params = {
         Bucket: BUCKET_NAME,
         Key: `photos/${fileName}`,
@@ -32,7 +32,7 @@ const generateUploadURL = async (fileName, contentType) => {
 };
 
 // Генерация пресайн URL для получения файла
-const generateGetURL = async (key) => {
+export const generateGetURL = async (key) => {
     const params = {
         Bucket: BUCKET_NAME,
         Key: key
@@ -49,7 +49,7 @@ const generateGetURL = async (key) => {
 };
 
 // Удаление файла из S3
-const deleteFile = async (key) => {
+export const deleteFile = async (key) => {
     const params = {
         Bucket: BUCKET_NAME,
         Key: key
@@ -61,10 +61,4 @@ const deleteFile = async (key) => {
         console.error('Ошибка при удалении файла:', error);
         throw error;
     }
-};
-
-module.exports = {
-    generateUploadURL,
-    generateGetURL,
-    deleteFile
 }; 

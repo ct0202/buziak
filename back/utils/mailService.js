@@ -1,7 +1,12 @@
-const { google } = require('googleapis');
-const nodemailer = require('nodemailer');
-const path = require('path');
-const fs = require('fs');
+import { google } from 'googleapis';
+import nodemailer from 'nodemailer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// Получаем текущий путь к файлу
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Подгружаем credentials
 const CREDENTIALS = JSON.parse(fs.readFileSync(path.join(__dirname, 'credentials.json')));
@@ -14,7 +19,7 @@ oAuth2Client.setCredentials({
   refresh_token: 'ВАШ_REFRESH_TOKEN'
 });
 
-async function sendConfirmationEmail(toEmail, code) {
+export const sendConfirmationEmail = async (toEmail, code) => {
   const accessToken = await oAuth2Client.getAccessToken();
 
   const transport = nodemailer.createTransport({
@@ -39,6 +44,4 @@ async function sendConfirmationEmail(toEmail, code) {
 
   const result = await transport.sendMail(mailOptions);
   return result;
-}
-
-module.exports = { sendConfirmationEmail };
+};

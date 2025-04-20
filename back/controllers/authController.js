@@ -1,72 +1,169 @@
-const { google } = require('googleapis');
-const OAuth2 = google.auth.OAuth2;
-const User = require('../models/User');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
+import User from '../models/User.js';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { OAuth2Client } from 'google-auth-library';
+import { s3, BUCKET_NAME } from '../config/aws.js';
 
-// Создание OAuth2 клиента
-const oauth2Client = new OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
-);
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Генерация URL для авторизации
-exports.getAuthUrl = (req, res) => {
-    const authUrl = oauth2Client.generateAuthUrl({
-        access_type: 'offline',
-        scope: [
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile'
-        ],
-        prompt: 'consent'
-    });
-    res.json({ authUrl });
-};
-
-// Обработка callback от Google
-exports.handleGoogleCallback = async (req, res) => {
+// Регистрация пользователя
+export const register = async (req, res) => {
     try {
-        const { code } = req.query;
-
-        // Получаем токены
-        const { tokens } = await oauth2Client.getToken(code);
-        oauth2Client.setCredentials(tokens);
-
-        // Получаем информацию о пользователе
-        const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-        const { data } = await oauth2.userinfo.get();
+        const { email, password, name } = req.body;
 
         // Проверяем, существует ли пользователь
-        let user = await User.findOne({ email: data.email });
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: 'Пользователь с таким email уже существует' });
+        }
+
+        // Хешируем пароль
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Создаем нового пользователя
+        const user = new User({
+            email,
+            password: hashedPassword,
+            name,
+            photos: new Array(6).fill(null)
+        });
+
+        await user.save();
+
+        // Создаем JWT токен
+        const token = jwt.sign(
+            { id: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+
+        res.status(201).json({
+            token,
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                photos: user.photos
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка при регистрации:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Вход пользователя
+export const login = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Находим пользователя
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(401).json({ message: 'Неверный email или пароль' });
+        }
+
+        // Проверяем пароль
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: 'Неверный email или пароль' });
+        }
+
+        // Создаем JWT токен
+        const token = jwt.sign(
+            { id: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+
+        res.json({
+            token,
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                photos: user.photos
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка при входе:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Google аутентификация
+export const googleAuth = async (req, res) => {
+    try {
+        const { token } = req.body;
+
+        // Верифицируем токен Google
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID
+        });
+
+        const payload = ticket.getPayload();
+        const { email, name, picture } = payload;
+
+        // Проверяем, существует ли пользователь
+        let user = await User.findOne({ email });
 
         if (!user) {
             // Создаем нового пользователя
             user = new User({
-                name: data.name,
-                email: data.email,
-                password: crypto.randomBytes(32).toString('hex'),
-                phone: `google_${data.id}`,
-                gender: 'male'
+                email,
+                name,
+                photos: new Array(6).fill(null)
             });
-            await user.save();
-        } else {
-            // Если пользователь существует, обновляем его данные
-            user.name = data.name;
+
+            // Если есть аватар от Google, сохраняем его
+            if (picture) {
+                try {
+                    // Скачиваем изображение
+                    const response = await fetch(picture);
+                    const buffer = await response.buffer();
+                    
+                    // Генерируем уникальное имя файла
+                    const fileName = `${user._id}-google-avatar.jpg`;
+                    const key = `avatars/${fileName}`;
+
+                    // Загружаем в S3
+                    await s3.upload({
+                        Bucket: BUCKET_NAME,
+                        Key: key,
+                        Body: buffer,
+                        ContentType: 'image/jpeg'
+                    }).promise();
+
+                    // Сохраняем ключ в базе данных
+                    user.avatar = key;
+                } catch (error) {
+                    console.error('Ошибка при сохранении аватара Google:', error);
+                }
+            }
+
             await user.save();
         }
 
-        // Генерируем JWT токен
-        const token = jwt.sign(
+        // Создаем JWT токен
+        const jwtToken = jwt.sign(
             { id: user._id },
             process.env.JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: '30d' }
         );
 
-        // Перенаправляем на фронтенд с токеном
-        res.redirect(`${process.env.CLIENT_URL}/dashboard?token=${token}`);
+        res.json({
+            token: jwtToken,
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                photos: user.photos,
+                avatar: user.avatar
+            }
+        });
     } catch (error) {
-        console.error('Ошибка при обработке Google callback:', error);
-        res.redirect(`${process.env.CLIENT_URL}/auth/error?message=auth_failed`);
+        console.error('Ошибка при Google аутентификации:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
     }
 };

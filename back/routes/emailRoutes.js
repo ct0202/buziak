@@ -1,6 +1,7 @@
-const express = require('express');
+import express from 'express';
+import emailController from '../controllers/emailController.js';
+
 const router = express.Router();
-const emailController = require('../controllers/emailController');
 
 // router.post('/code', emailController.sendEmail);
 router.post('/send/code', emailController.sendConfirmationCode);
@@ -11,4 +12,4 @@ router.post('/reset-password', emailController.resetPassword);
 // Роут для проверки кода подтверждения
 router.post('/verify-code', emailController.verifyConfirmationCode);
 
-module.exports = router; 
+export default router; 

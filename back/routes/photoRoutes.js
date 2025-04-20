@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import photoController from '../controllers/photoController.js';
+// import auth from '../middlewares/auth.js';
+import multer from 'multer';
+
 const router = express.Router();
-const photoController = require('../controllers/photoController');
-// const auth = require('../middlewares/auth');
-const multer = require('multer');
 
 // Настройка multer для обработки multipart/form-data
 const upload = multer({
@@ -24,4 +25,4 @@ router.post('/', upload.single('photo'), photoController.uploadPhoto);
 // Удаление фото по индексу
 router.delete('/:index', photoController.deletePhoto);
 
-module.exports = router; 
+export default router; 

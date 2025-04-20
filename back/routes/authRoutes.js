@@ -1,9 +1,10 @@
-const express = require('express');
+import express from 'express';
+import { google } from 'googleapis';
+import dotenv from 'dotenv';
+import authController from '../controllers/authController.js';
+
 const router = express.Router();
-const { google } = require('googleapis');
 const OAuth2 = google.auth.OAuth2;
-const dotenv = require('dotenv');
-const authController = require('../controllers/authController');
 
 // Загрузка переменных окружения
 dotenv.config();
@@ -304,4 +305,4 @@ router.get('/terms', (req, res) => {
   `);
 });
 
-module.exports = router; 
+export default router; 

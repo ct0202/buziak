@@ -1,9 +1,9 @@
-const { google } = require('googleapis');
-const OAuth2 = google.auth.OAuth2;
-const crypto = require('crypto');
-const bcrypt = require('bcrypt');
-const User = require('../models/User');
+import { google } from 'googleapis';
+import crypto from 'crypto';
+import bcrypt from 'bcrypt';
+import User from '../models/User.js';
 
+const OAuth2 = google.auth.OAuth2;
 const confirmationCodes = new Map();
 
 const generateConfirmationCode = () => {
@@ -33,7 +33,7 @@ const getGmailService = async () => {
     }
 };
 
-exports.sendConfirmationCode = async (req, res) => {
+export const sendConfirmationCode = async (req, res) => {
     try {
         const { email } = req.body;
 
@@ -83,7 +83,7 @@ exports.sendConfirmationCode = async (req, res) => {
 };
 
 // Отправка ссылки сброса пароля
-exports.sendPasswordResetLink = async (req, res) => {
+export const sendPasswordResetLink = async (req, res) => {
     try {
         const { email } = req.body;
 
@@ -99,18 +99,16 @@ exports.sendPasswordResetLink = async (req, res) => {
 
         // Генерируем токен для сброса пароля
         const resetToken = crypto.randomBytes(32).toString('hex');
-        
-        // Сохраняем токен в базе данных
+        const resetTokenExpires = Date.now() + 3600000; // 1 час
+
         user.resetPasswordToken = resetToken;
-        user.resetPasswordExpires = Date.now() + 180000; // 3 минуты
+        user.resetPasswordExpires = resetTokenExpires;
         await user.save();
 
-        // Создаем ссылку для сброса пароля
-        const resetLink = `${process.env.CLIENT_URL}/newPassword?token=${resetToken}`;
-
-        // Отправляем письмо
+        // Отправляем email с ссылкой
         const gmail = await getGmailService();
-        const message = `From: ${process.env.MAIL_USER}\r\nTo: ${email}\r\nSubject: Сброс пароля\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<h2>Сброс пароля</h2><p>Для сброса пароля перейдите по следующей ссылке:</p><p><a href="${resetLink}">Сбросить пароль</a></p><p>Ссылка действительна в течение 3 минут.</p>`;
+        const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+        const message = `From: ${process.env.MAIL_USER}\r\nTo: ${email}\r\nSubject: Сброс пароля\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<h2>Сброс пароля</h2><p>Для сброса пароля перейдите по ссылке: <a href="${resetUrl}">${resetUrl}</a></p><p>Ссылка действительна в течение 1 часа.</p>`;
 
         const encodedMessage = Buffer.from(message)
             .toString('base64')
@@ -125,9 +123,7 @@ exports.sendPasswordResetLink = async (req, res) => {
             }
         });
 
-        res.status(200).json({ 
-            message: 'Ссылка для сброса пароля отправлена на вашу почту'
-        });
+        res.status(200).json({ message: 'Ссылка для сброса пароля отправлена на вашу почту' });
     } catch (error) {
         console.error('Ошибка отправки ссылки сброса пароля:', error);
         if (error.message.includes('Refresh token недействителен')) {
@@ -141,13 +137,9 @@ exports.sendPasswordResetLink = async (req, res) => {
 };
 
 // Проверка токена сброса пароля
-exports.verifyResetToken = async (req, res) => {
+export const verifyResetToken = async (req, res) => {
     try {
         const { token } = req.params;
-
-        if (!token) {
-            return res.status(400).json({ message: 'Токен не предоставлен' });
-        }
 
         const user = await User.findOne({
             resetPasswordToken: token,
@@ -155,50 +147,35 @@ exports.verifyResetToken = async (req, res) => {
         });
 
         if (!user) {
-            return res.status(400).json({ 
-                message: 'Токен недействителен или истек',
-                isValid: false
-            });
+            return res.status(400).json({ message: 'Недействительный или просроченный токен' });
         }
 
-        res.status(200).json({ 
-            message: 'Токен действителен',
-            isValid: true
-        });
+        res.status(200).json({ message: 'Токен действителен' });
     } catch (error) {
-        console.error('Ошибка проверки токена:', error);
-        res.status(500).json({ message: 'Ошибка проверки токена' });
+        console.error('Ошибка проверки токена сброса пароля:', error);
+        res.status(500).json({ message: 'Ошибка проверки токена сброса пароля' });
     }
 };
 
 // Сброс пароля
-exports.resetPassword = async (req, res) => {
+export const resetPassword = async (req, res) => {
     try {
         const { token, newPassword } = req.body;
-
-        if (!token || !newPassword) {
-            return res.status(400).json({ message: 'Токен и новый пароль обязательны' });
-        }
 
         const user = await User.findOne({
             resetPasswordToken: token,
             resetPasswordExpires: { $gt: Date.now() }
         });
 
-        console.log('changed password -> ', user);
-
         if (!user) {
-            return res.status(400).json({ message: 'Токен недействителен или истек' });
+            return res.status(400).json({ message: 'Недействительный или просроченный токен' });
         }
 
-        // Устанавливаем новый пароль
-        user.password = newPassword;
-        
-        // Очищаем токен
-        user.resetPasswordToken = null;
-        user.resetPasswordExpires = null;
-        
-        // Сохраняем пользователя - middleware автоматически хеширует пароль
+        // Хешируем новый пароль
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
         await user.save();
 
         res.status(200).json({ message: 'Пароль успешно изменен' });
@@ -209,60 +186,25 @@ exports.resetPassword = async (req, res) => {
 };
 
 // Проверка кода подтверждения
-exports.verifyConfirmationCode = async (req, res) => {
+export const verifyConfirmationCode = async (req, res) => {
     try {
         const { email, code } = req.body;
 
         if (!email || !code) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Email и код подтверждения обязательны' 
-            });
+            return res.status(400).json({ message: 'Email и код обязательны' });
         }
 
-        // Проверяем код в глобальном Map
         const storedCode = confirmationCodes.get(email);
-        
-        if (!storedCode) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Код подтверждения не найден или истек' 
-            });
+        if (!storedCode || storedCode !== code) {
+            return res.status(400).json({ message: 'Неверный код подтверждения' });
         }
-
-        if (storedCode !== code) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Неверный код подтверждения' 
-            });
-        }
-
-        // Находим пользователя
-        const user = await User.findOne({ email });
-
-        if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Пользователь не найден' 
-            });
-        }
-
-        // Код верный, активируем пользователя
-        // user.isActive = true;
-        // await user.save();
 
         // Удаляем использованный код
         confirmationCodes.delete(email);
 
-        res.json({ 
-            success: true, 
-            message: 'Email успешно подтвержден' 
-        });
+        res.status(200).json({ message: 'Код подтвержден успешно' });
     } catch (error) {
-        console.error('Ошибка при проверке кода подтверждения:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Ошибка при проверке кода подтверждения' 
-        });
+        console.error('Ошибка проверки кода подтверждения:', error);
+        res.status(500).json({ message: 'Ошибка проверки кода подтверждения' });
     }
 }; 

@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import profileController from '../controllers/profileController.js';
+import multer from 'multer';
+// import auth from '../middlewares/auth.js';
+
 const router = express.Router();
-const profileController = require('../controllers/profileController');
-const multer = require('multer');
-// const auth = require('../middlewares/auth');
 
 // Настройка multer для обработки верификационного фото
 const upload = multer({
@@ -41,4 +42,4 @@ router.put('/', profileController.updateProfileSettings);
 // Обновление цели пользователя
 router.put('/purpose', profileController.updatePurpose);
 
-module.exports = router; 
+export default router; 

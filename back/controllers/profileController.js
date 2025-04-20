@@ -1,4 +1,5 @@
-const User = require('../models/User');
+import User from '../models/User.js';
+import jwt from 'jsonwebtoken';
 const mongoose = require('mongoose');
 const { s3, BUCKET_NAME } = require('../config/aws');
 let fetch;
@@ -24,68 +25,55 @@ const upload = multer({
     }
 });
 
-// Получение полной информации о пользователе
-exports.getProfile = async (req, res) => {
+// Получение профиля пользователя
+export const getProfile = async (req, res) => {
     try {
-        const { userId } = req.query;
-
-        if (!userId || userId === 'undefined') {
-            return res.status(400).json({ message: 'ID пользователя не указан' });
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ message: 'Токен не предоставлен' });
         }
 
-        // Проверяем, что userId является валидным ObjectId
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
-        }
-
-        // Находим пользователя и исключаем чувствительные поля
-        const user = await User.findById(userId).select('-password -resetPasswordToken -resetPasswordExpires');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id).select('-password');
         
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        // Генерируем URL для каждой фотографии
-        if (user.photos && user.photos.length > 0) {
-            console.log("генерируем URL для каждой фотографии");
-            const photoUrls = await Promise.all(
-                user.photos.map(async (key, position) => {
-                    if (!key) return null;
-                    
-                    const url = await s3.getSignedUrlPromise('getObject', {
-                        Bucket: BUCKET_NAME,
-                        Key: key,
-                        Expires: 3600
-                    });
-
-                    return {
-                        position,
-                        url,
-                        key
-                    };
-                })
-            );
-
-            user.photoUrls = photoUrls.filter(photo => photo !== null);
-            console.log('user.photoUrls', user.photoUrls);
-        }
-
-        // Генерируем URL для верификационного фото, если оно есть
-        if (user.verificationPhoto) {
-            user.verificationPhotoUrl = await s3.getSignedUrlPromise('getObject', {
-                Bucket: BUCKET_NAME,
-                Key: user.verificationPhoto,
-                Expires: 3600
-            });
-        }
-
-        // Преобразуем документ Mongoose в обычный объект перед отправкой
-        const userObject = user.toObject();
-        console.log('userObject', userObject);
-        res.json(userObject);
+        res.json(user);
     } catch (error) {
         console.error('Ошибка при получении профиля:', error);
-        res.status(500).json({ message: 'Ошибка при получении профиля' });
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Обновление профиля пользователя
+export const updateProfile = async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ message: 'Токен не предоставлен' });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+        
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+
+        // Обновляем только те поля, которые были предоставлены
+        if (req.body.name) user.name = req.body.name;
+        if (req.body.phone) user.phone = req.body.phone;
+        if (req.body.gender) user.gender = req.body.gender;
+        if (req.body.birthDate) user.birthDate = req.body.birthDate;
+        if (req.body.avatar) user.avatar = req.body.avatar;
+
+        await user.save();
+        res.json({ message: 'Профиль успешно обновлен' });
+    } catch (error) {
+        console.error('Ошибка при обновлении профиля:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
     }
 };
 

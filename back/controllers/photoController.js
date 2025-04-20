@@ -1,7 +1,7 @@
-const { s3, BUCKET_NAME } = require('../config/aws');
-const User = require('../models/User');
-const crypto = require('crypto');
-const mongoose = require('mongoose');
+import User from '../models/User.js';
+import jwt from 'jsonwebtoken';
+import { s3, BUCKET_NAME } from '../config/aws.js';
+import { v4 as uuidv4 } from 'uuid';
 
 // Получение фотографий пользователя
 exports.getPhotos = async (req, res) => {
@@ -49,120 +49,109 @@ exports.getPhotos = async (req, res) => {
     }
 };
 
-// Загрузка фото
-exports.uploadPhoto = async (req, res) => {
+// Загрузка аватара
+export const uploadAvatar = async (req, res) => {
     try {
-        const { position, userId } = req.body;
-        const file = req.file;
-
-        if (!file) {
-            return res.status(400).json({ message: 'Файл не предоставлен' });
+        if (!req.file) {
+            return res.status(400).json({ message: 'Файл не загружен' });
         }
 
-        if (position === undefined || position < 0 || position > 8) {
-            return res.status(400).json({ message: 'Неверная позиция фото (должна быть от 0 до 8)' });
-        }
-
-        if (!userId || userId === 'undefined') {
-            return res.status(400).json({ message: 'ID пользователя не указан' });
-        }
-
-        // Проверяем, что userId является валидным ObjectId
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
-        }
-
-        const user = await User.findById(userId);
+        const user = await User.findById(req.user.id);
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        // Генерируем уникальное имя файла
-        const fileName = `${userId}-${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${file.originalname.split('.').pop()}`;
-        const key = `photos/${fileName}`;
-
-        // Загружаем файл в S3
-        const params = {
-            Bucket: BUCKET_NAME,
-            Key: key,
-            Body: file.buffer,
-            ContentType: file.mimetype
-        };
-
-        await s3.upload(params).promise();
-
-        // Обновляем массив фотографий пользователя
-        if (!user.photos) {
-            user.photos = new Array(9).fill(null);
+        // Если у пользователя уже есть аватар, удаляем старый
+        if (user.avatar) {
+            await s3.deleteObject({
+                Bucket: BUCKET_NAME,
+                Key: user.avatar
+            }).promise();
         }
-        user.photos[position] = key;
+
+        user.avatar = req.file.key;
         await user.save();
 
-        // Генерируем URL для просмотра
-        const url = await s3.getSignedUrlPromise('getObject', {
+        const avatarUrl = await s3.getSignedUrlPromise('getObject', {
             Bucket: BUCKET_NAME,
-            Key: key,
+            Key: user.avatar,
             Expires: 3600
         });
 
         res.json({
-            message: 'Фото успешно загружено',
-            url,
-            position
+            avatar: {
+                key: user.avatar,
+                url: avatarUrl
+            }
         });
     } catch (error) {
-        console.error('Ошибка при загрузке фото:', error);
-        res.status(500).json({ message: 'Ошибка при загрузке фото' });
+        console.error('Ошибка при загрузке аватара:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
     }
 };
 
-// Удаление фото по индексу
-exports.deletePhoto = async (req, res) => {
+// Загрузка фотографии
+export const uploadPhoto = async (req, res) => {
     try {
-        const { index } = req.params;
-        const { userId } = req.body;
-
-        if (index < 0 || index > 8) {
-            return res.status(400).json({ message: 'Неверный индекс фото (должен быть от 0 до 8)' });
+        if (!req.file) {
+            return res.status(400).json({ message: 'Файл не загружен' });
         }
 
-        if (!userId || userId === 'undefined') {
-            return res.status(400).json({ message: 'ID пользователя не указан' });
-        }
-
-        // Проверяем, что userId является валидным ObjectId
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(400).json({ message: 'Неверный формат ID пользователя' });
-        }
-
-        const user = await User.findById(userId);
+        const user = await User.findById(req.user.id);
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
 
-        if (!user.photos || !user.photos[index]) {
-            return res.status(404).json({ message: 'Фото не найдено' });
+        user.photos.push(req.file.key);
+        await user.save();
+
+        const photoUrl = await s3.getSignedUrlPromise('getObject', {
+            Bucket: BUCKET_NAME,
+            Key: req.file.key,
+            Expires: 3600
+        });
+
+        res.json({
+            photo: {
+                key: req.file.key,
+                url: photoUrl
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка при загрузке фотографии:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Удаление фотографии
+export const deletePhoto = async (req, res) => {
+    try {
+        const { photoKey } = req.params;
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+
+        const photoIndex = user.photos.indexOf(photoKey);
+        if (photoIndex === -1) {
+            return res.status(404).json({ message: 'Фотография не найдена' });
         }
 
         // Удаляем фото из S3
-        const params = {
+        await s3.deleteObject({
             Bucket: BUCKET_NAME,
-            Key: user.photos[index]
-        };
+            Key: photoKey
+        }).promise();
 
-        await s3.deleteObject(params).promise();
-
-        // Удаляем ссылку из массива
-        user.photos[index] = null;
+        // Удаляем фото из массива пользователя
+        user.photos.splice(photoIndex, 1);
         await user.save();
 
-        res.json({ 
-            message: 'Фото успешно удалено',
-            position: index
-        });
+        res.json({ message: 'Фотография успешно удалена' });
     } catch (error) {
-        console.error('Ошибка при удалении фото:', error);
-        res.status(500).json({ message: 'Ошибка при удалении фото' });
+        console.error('Ошибка при удалении фотографии:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
     }
 };
 
