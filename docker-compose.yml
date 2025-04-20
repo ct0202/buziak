@@ -5,8 +5,6 @@ services:
     build: ./back
     ports:
       - "5002:2000"
-    environment:
-      - NODE_ENV=production
     restart: always
 
   frontend:
@@ -15,7 +13,7 @@ services:
       - "3002:3002"
     environment:
       - NODE_ENV=production
-      - REACT_APP_API_URL=http://localhost:5002
+      - REACT_APP_API_URL=https://api.buziak.online
     depends_on:
       - backend
     restart: always
@@ -26,7 +24,7 @@ services:
       - "5173:3001"
     environment:
       - NODE_ENV=production
-      - VITE_API_URL=http://localhost:5002
+      - VITE_API_URL=https://api.buziak.online
     depends_on:
       - backend
     restart: always 

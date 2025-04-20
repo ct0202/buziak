@@ -290,3 +290,184 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ message: "Ошибка сервера", error: err.message });
   }
 };
+
+        if (user.avatar) {
+            try {
+                avatarUrl = await s3.getSignedUrlPromise('getObject', {
+                    Bucket: BUCKET_NAME,
+                    Key: user.avatar,
+                    Expires: 3600
+                });
+            } catch (error) {
+                console.error('Ошибка при генерации URL для аватара:', error);
+            }
+        }
+
+        res.json({
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                photos: photosWithUrls,
+                avatar: avatarUrl ? { key: user.avatar, url: avatarUrl } : null
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка при получении информации о пользователе:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Получение всех пользователей
+export const getUsers = async (req, res) => {
+    try {
+        const users = await User.find().select('-password');
+        const usersWithPhotos = await Promise.all(
+            users.map(async (user) => {
+                let avatarUrl = null;
+                if (user.avatar) {
+                    avatarUrl = await s3.getSignedUrlPromise('getObject', {
+                        Bucket: BUCKET_NAME,
+                        Key: user.avatar,
+                        Expires: 3600
+                    });
+                }
+
+                const photos = await Promise.all(
+                    user.photos.map(async (photo) => {
+                        const url = await s3.getSignedUrlPromise('getObject', {
+                            Bucket: BUCKET_NAME,
+                            Key: photo,
+                            Expires: 3600
+                        });
+                        return { key: photo, url };
+                    })
+                );
+
+                return {
+                    ...user.toObject(),
+                    avatar: user.avatar ? { key: user.avatar, url: avatarUrl } : null,
+                    photos
+                };
+            })
+        );
+
+        res.json(usersWithPhotos);
+    } catch (error) {
+        console.error('Ошибка при получении пользователей:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Получение пользователя по ID
+export const getUserById = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select('-password');
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+
+        let avatarUrl = null;
+        if (user.avatar) {
+            avatarUrl = await s3.getSignedUrlPromise('getObject', {
+                Bucket: BUCKET_NAME,
+                Key: user.avatar,
+                Expires: 3600
+            });
+        }
+
+        const photos = await Promise.all(
+            user.photos.map(async (photo) => {
+                const url = await s3.getSignedUrlPromise('getObject', {
+                    Bucket: BUCKET_NAME,
+                    Key: photo,
+                    Expires: 3600
+                });
+                return { key: photo, url };
+            })
+        );
+
+        res.json({
+            ...user.toObject(),
+            avatar: user.avatar ? { key: user.avatar, url: avatarUrl } : null,
+            photos
+        });
+    } catch (error) {
+        console.error('Ошибка при получении пользователя:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Обновление пользователя
+export const updateUser = async (req, res) => {
+    try {
+        const { name, age, gender, lookingFor, bio } = req.body;
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+
+        user.name = name || user.name;
+        user.age = age || user.age;
+        user.gender = gender || user.gender;
+        user.lookingFor = lookingFor || user.lookingFor;
+        user.bio = bio || user.bio;
+
+        await user.save();
+
+        let avatarUrl = null;
+        if (user.avatar) {
+            avatarUrl = await s3.getSignedUrlPromise('getObject', {
+                Bucket: BUCKET_NAME,
+                Key: user.avatar,
+                Expires: 3600
+            });
+        }
+
+        const photos = await Promise.all(
+            user.photos.map(async (photo) => {
+                const url = await s3.getSignedUrlPromise('getObject', {
+                    Bucket: BUCKET_NAME,
+                    Key: photo,
+                    Expires: 3600
+                });
+                return { key: photo, url };
+            })
+        );
+
+        res.json({
+            ...user.toObject(),
+            password: undefined,
+            avatar: user.avatar ? { key: user.avatar, url: avatarUrl } : null,
+            photos
+        });
+    } catch (error) {
+        console.error('Ошибка при обновлении пользователя:', error);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+};
+
+// Сброс пароля
+export const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: Date.now() },
+    });
+
+    if (!user) return res.status(400).json({ message: "Недействительный или истекший токен" });
+
+    user.password = password;
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+    await user.save();
+
+    res.json({ message: "Пароль успешно обновлён" });
+  } catch (err) {
+    res.status(500).json({ message: "Ошибка сервера", error: err.message });
+  }
+};
